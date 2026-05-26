@@ -1,0 +1,2591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CostAbsorb Pro — Inventory Cost Absorption & Pricing Tool</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   ERP DESIGN SYSTEM TOKENS
+   ═══════════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f4f6f9;
+  --surface: #fff;
+  --s2: #f0f2f6;
+  --s3: #e8ebf0;
+  --border: #dde1e8;
+  --border2: #c8cdd8;
+  --text: #1c2030;
+  --t2: #5c6478;
+  --t3: #9ba3b5;
+  --blue: #1849a9;
+  --blue2: #eef2fc;
+  --blue3: #0d2d6e;
+  --green: #166534;  --green2: #f0fdf4;  --green3: #dcfce7;
+  --amber: #92400e;  --amber2: #fffbeb;
+  --red:   #991b1b;  --red2:   #fef2f2;  --red3:   #fee2e2;
+  --teal:  #115e59;  --teal2:  #f0fdfa;
+  --orange:#c2410c;  --orange2:#fff7ed;
+  --purple:#6b21a8;  --purple2:#faf5ff;
+  --r:  8px;
+  --r2: 12px;
+}
+
+html, body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   APP SHELL
+   ═══════════════════════════════════════════════════════════════ */
+.app { display: grid; grid-template-rows: 50px 1fr; height: 100vh; }
+
+.topbar {
+  background: var(--blue3);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  z-index: 50;
+}
+.topbar .logo {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700;
+}
+.topbar .logo-box {
+  width: 30px; height: 30px;
+  background: #fff;
+  color: var(--blue3);
+  border-radius: 7px;
+  font-size: 11px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: -0.3px;
+}
+.topbar .logo .nm { font-size: 14px; }
+.topbar .logo .sub { font-size: 10px; opacity: .7; font-weight: 400; }
+.topbar .spacer { flex: 1; }
+.topbar .tb-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: .85;
+  font-size: 12px;
+  transition: all .15s;
+}
+.topbar .tb-item:hover { background: rgba(255,255,255,.1); opacity: 1; }
+.topbar .user {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px 4px 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 20px;
+  cursor: pointer;
+}
+.topbar .avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, #4a7fd1, #1849a9);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+
+.body { display: grid; grid-template-columns: 215px 1fr; overflow: hidden; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR
+   ═══════════════════════════════════════════════════════════════ */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 10px 0;
+  overflow-y: auto;
+}
+.nav-sec {
+  font-size: 9px; font-weight: 800;
+  color: var(--t3);
+  padding: 14px 16px 4px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.ni {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  color: var(--t2);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all .12s;
+}
+.ni:hover { background: var(--s2); color: var(--text); }
+.ni.active {
+  background: var(--blue2);
+  color: var(--blue);
+  border-left-color: var(--blue);
+  font-weight: 600;
+}
+.ni .ic { font-size: 15px; width: 20px; text-align: center; }
+.ni .badge-count {
+  margin-left: auto;
+  background: var(--blue);
+  color: #fff;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN
+   ═══════════════════════════════════════════════════════════════ */
+.main {
+  padding: 18px 22px;
+  overflow-y: auto;
+}
+
+.ph {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 18px;
+  gap: 16px;
+}
+.pt { font-size: 19px; font-weight: 700; color: var(--blue3); }
+.ps { font-size: 12px; color: var(--t2); margin-top: 2px; }
+.brow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ═══════════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════════ */
+.btn {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 7px 14px;
+  border-radius: var(--r);
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all .14s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.btn:hover { background: var(--s2); border-color: var(--t3); }
+.btn-p  { background: var(--blue);  color: #fff; border-color: var(--blue); }
+.btn-p:hover  { background: var(--blue3); border-color: var(--blue3); }
+.btn-s  { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-s:hover  { filter: brightness(1.1); }
+.btn-d  { background: var(--red);   color: #fff; border-color: var(--red); }
+.btn-d:hover  { filter: brightness(1.1); }
+.btn-u  { background: var(--orange);color: #fff; border-color: var(--orange); }
+.btn-u:hover  { filter: brightness(1.1); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-xs { padding: 3px 8px; font-size: 10.5px; }
+.btn-lg { padding: 9px 18px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════
+   STAT CARDS
+   ═══════════════════════════════════════════════════════════════ */
+.sgrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.stat::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--blue);
+}
+.stat.s-green::before  { background: var(--green); }
+.stat.s-amber::before  { background: var(--amber); }
+.stat.s-red::before    { background: var(--red); }
+.stat.s-teal::before   { background: var(--teal); }
+.stat.s-orange::before { background: var(--orange); }
+.stat.s-purple::before { background: var(--purple); }
+.stat-lbl { font-size: 10.5px; color: var(--t2); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.stat-val { font-size: 19px; font-weight: 800; color: var(--blue3); margin-top: 4px; letter-spacing: -.3px; }
+.stat-sub { font-size: 10.5px; color: var(--t3); margin-top: 2px; }
+.stat-sub.up { color: var(--green); }
+.stat-sub.dn { color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CARDS
+   ═══════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.ch {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(to bottom, #fafbfd, #fff);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ct { font-size: 13.5px; font-weight: 700; color: var(--blue3); }
+.cs { font-size: 11px; color: var(--t2); margin-top: 1px; }
+.cb { padding: 16px; }
+.cb.dense { padding: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   FORMS
+   ═══════════════════════════════════════════════════════════════ */
+.fg { margin-bottom: 12px; }
+.fl {
+  font-size: 11px;
+  color: var(--t2);
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.fl .req { color: var(--red); }
+.inp, .sel, .txa {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  padding: 7px 10px;
+  border-radius: var(--r);
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--text);
+  transition: border-color .12s, box-shadow .12s;
+}
+.inp:focus, .sel:focus, .txa:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(24,73,169,.12);
+}
+.inp.sm { padding: 5px 8px; font-size: 11.5px; }
+.inp.num { text-align: right; font-variant-numeric: tabular-nums; }
+.txa { min-height: 60px; resize: vertical; }
+
+.fg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fg3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.fg4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   BADGES
+   ═══════════════════════════════════════════════════════════════ */
+.bdg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 11px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.bdg .bd { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.b-draft { background: var(--s3); color: var(--t2); border-color: var(--border2); }
+.b-sub   { background: var(--blue2); color: var(--blue); border-color: #c4d4f0; }
+.b-app   { background: var(--teal2); color: var(--teal); border-color: #b3e5dd; }
+.b-paid  { background: var(--green2); color: var(--green); border-color: var(--green3); }
+.b-pap   { background: var(--amber2); color: var(--amber); border-color: #fce4a6; }
+.b-rej   { background: var(--red2); color: var(--red); border-color: var(--red3); }
+.b-urg   { background: var(--orange2); color: var(--orange); border-color: #fcd9b8; }
+.b-info  { background: var(--purple2); color: var(--purple); border-color: #e9d5ff; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TABLES
+   ═══════════════════════════════════════════════════════════════ */
+.tw { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+thead { background: var(--s2); }
+th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--t2);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+th.num { text-align: right; }
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: var(--s2); }
+tbody tr.foot {
+  background: var(--blue2);
+  font-weight: 700;
+}
+tbody tr.foot td {
+  border-top: 2px solid var(--blue);
+  border-bottom: none;
+}
+.mono {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11.5px;
+  color: var(--blue3);
+  font-weight: 600;
+}
+
+/* tiny inline input inside table */
+td .inp, td .sel { padding: 4px 7px; font-size: 11.5px; }
+
+/* row actions */
+.row-act { display: inline-flex; gap: 4px; }
+.iconbtn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--t2);
+  transition: all .12s;
+}
+.iconbtn:hover { background: var(--s2); color: var(--text); }
+.iconbtn.del:hover { background: var(--red2); color: var(--red); border-color: var(--red3); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ALERTS
+   ═══════════════════════════════════════════════════════════════ */
+.alert {
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-size: 12px;
+  border-left: 4px solid;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.alert .ai { font-size: 16px; }
+.al-info  { background: var(--blue2); border-color: var(--blue);  color: var(--blue3); }
+.al-ok    { background: var(--green2); border-color: var(--green); color: var(--green); }
+.al-warn  { background: var(--amber2); border-color: var(--amber); color: var(--amber); }
+.al-err   { background: var(--red2); border-color: var(--red);   color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════════
+   TABS
+   ═══════════════════════════════════════════════════════════════ */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+.tab {
+  padding: 9px 14px;
+  font-size: 12px;
+  color: var(--t2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all .14s;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+.tab .cnt {
+  background: var(--s3);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 5px;
+}
+.tab.active .cnt { background: var(--blue2); color: var(--blue); }
+
+/* ═══════════════════════════════════════════════════════════════
+   MODAL
+   ═══════════════════════════════════════════════════════════════ */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(13, 45, 110, .35);
+  backdrop-filter: blur(2px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: var(--r2);
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0,0,0,.25);
+}
+.modal.lg { max-width: 980px; }
+.modal-h {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(to bottom, #fafbfd, #fff);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-h h3 { font-size: 14px; font-weight: 700; color: var(--blue3); }
+.modal-h .close {
+  background: none; border: none; font-size: 20px; cursor: pointer;
+  color: var(--t2); width: 28px; height: 28px; border-radius: 6px;
+}
+.modal-h .close:hover { background: var(--s2); color: var(--red); }
+.modal-b { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal-f {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--s2);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FILE UPLOAD ZONE
+   ═══════════════════════════════════════════════════════════════ */
+.dropzone {
+  border: 2px dashed var(--border2);
+  border-radius: var(--r2);
+  padding: 32px 20px;
+  text-align: center;
+  background: var(--s2);
+  cursor: pointer;
+  transition: all .15s;
+}
+.dropzone:hover, .dropzone.dragover {
+  border-color: var(--blue);
+  background: var(--blue2);
+}
+.dropzone .ic { font-size: 32px; color: var(--blue); margin-bottom: 8px; }
+.dropzone h4 { font-size: 13px; color: var(--blue3); margin-bottom: 4px; }
+.dropzone p { font-size: 11.5px; color: var(--t2); }
+.dropzone .accepts {
+  margin-top: 10px;
+  display: inline-flex;
+  gap: 6px;
+}
+.dropzone .accepts span {
+  font-size: 10px;
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: var(--t2);
+  border: 1px solid var(--border);
+}
+
+/* AI loader */
+.ai-load {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: var(--blue2);
+  border: 1px solid #c4d4f0;
+  border-radius: var(--r);
+  color: var(--blue3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.spinner {
+  width: 16px; height: 16px;
+  border: 2.5px solid #c4d4f0;
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* AI chip */
+.ai-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #6b21a8, #1849a9);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+/* market price card */
+.mpc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.mpc .top { display: flex; justify-content: space-between; align-items: flex-start; }
+.mpc .comp { font-size: 12px; font-weight: 700; color: var(--blue3); }
+.mpc .brand { font-size: 10.5px; color: var(--t2); }
+.mpc .pr {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+.mpc .src {
+  font-size: 10px;
+  color: var(--t3);
+  margin-top: 4px;
+}
+.mpc .note { font-size: 10.5px; color: var(--t2); margin-top: 3px; font-style: italic; }
+
+/* Helper */
+.muted { color: var(--t2); }
+.tiny { font-size: 10.5px; }
+.bold { font-weight: 700; }
+.right { text-align: right; }
+.flex { display: flex; }
+.gap8 { gap: 8px; }
+.gap12 { gap: 12px; }
+.aic { align-items: center; }
+.jcb { justify-content: space-between; }
+
+.tag-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--s3);
+  color: var(--t2);
+}
+
+/* hide screens by default */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* Two-column area used in build screen */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 14px;
+}
+
+/* sticky summary panel */
+.sticky-sum {
+  position: sticky;
+  top: 0;
+}
+
+@media (max-width: 1200px) {
+  .sgrid { grid-template-columns: repeat(3, 1fr); }
+  .split { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .body { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .sgrid { grid-template-columns: repeat(2, 1fr); }
+  .fg2, .fg3, .fg4 { grid-template-columns: 1fr; }
+}
+
+/* print styles for reports */
+@media print {
+  .topbar, .sidebar, .brow, .tabs { display: none !important; }
+  .main { padding: 0; overflow: visible; }
+  .body { grid-template-columns: 1fr; }
+  .card { break-inside: avoid; box-shadow: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══════════ TOPBAR ═══════════ -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-box">CA</div>
+      <div>
+        <div class="nm">CostAbsorb Pro</div>
+        <div class="sub">Inventory · Cost Absorption & Pricing</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="tb-item">🔔 Notifications</div>
+    <div class="tb-item">⚙ Settings</div>
+    <div class="tb-item">📊 Help</div>
+    <div class="user">
+      <div class="avatar">DC</div>
+      <div>
+        <div style="font-size:11.5px;font-weight:600">Dilanka C.</div>
+        <div style="font-size:9.5px;opacity:.7">Cost Controller</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- ═══════════ SIDEBAR ═══════════ -->
+    <aside class="sidebar">
+      <div class="nav-sec">Inventory Module</div>
+      <div class="ni" data-screen="dashboard"><span class="ic">📊</span>Dashboard</div>
+      <div class="ni active" data-screen="cost-sheets"><span class="ic">📋</span>Cost Sheets <span class="badge-count">7</span></div>
+      <div class="ni" data-screen="build"><span class="ic">🧮</span>Build / Edit Sheet</div>
+      <div class="ni" data-screen="pricing"><span class="ic">💲</span>Price Decision</div>
+      <div class="ni" data-screen="projections"><span class="ic">🔮</span>Future Projections</div>
+
+      <div class="nav-sec">Reference</div>
+      <div class="ni" data-screen="suppliers"><span class="ic">🏭</span>Suppliers</div>
+      <div class="ni" data-screen="currencies"><span class="ic">💱</span>Currencies & Rates</div>
+      <div class="ni" data-screen="costtypes"><span class="ic">🏷</span>Cost Types</div>
+
+      <div class="nav-sec">Reports</div>
+      <div class="ni" data-screen="reports"><span class="ic">📥</span>Downloads</div>
+      <div class="ni" data-screen="market"><span class="ic">🌐</span>Market Intelligence <span class="ai-chip" style="margin-left:auto">AI</span></div>
+
+      <div class="nav-sec">Settings</div>
+      <div class="ni" data-screen="settings"><span class="ic">⚙</span>Configuration</div>
+    </aside>
+
+    <!-- ═══════════ MAIN ═══════════ -->
+    <main class="main">
+
+      <!-- ─────────── SCREEN: COST SHEETS LIST ─────────── -->
+      <div class="screen active" id="screen-cost-sheets">
+        <div class="ph">
+          <div>
+            <div class="pt">Cost Absorption Sheets</div>
+            <div class="ps">All landed-cost sheets — actual & projected · Distribute landing costs across items by value, qty, or weight</div>
+          </div>
+          <div class="brow">
+            <input class="inp sm" placeholder="🔍 Search by sheet no, supplier, invoice..." style="width:280px">
+            <select class="sel" style="width:auto"><option>All Types</option><option>Actual</option><option>Projection</option></select>
+            <select class="sel" style="width:auto"><option>All Status</option><option>Draft</option><option>Approved</option><option>Finalized</option></select>
+            <button class="btn">📥 Export</button>
+            <button class="btn btn-p" onclick="goScreen('build')">+ New Cost Sheet</button>
+          </div>
+        </div>
+
+        <div class="sgrid">
+          <div class="stat s-teal">
+            <div class="stat-lbl">Total Sheets</div>
+            <div class="stat-val">47</div>
+            <div class="stat-sub">This year</div>
+          </div>
+          <div class="stat s-green">
+            <div class="stat-lbl">Finalized</div>
+            <div class="stat-val">38</div>
+            <div class="stat-sub up">↑ 12% vs Q3</div>
+          </div>
+          <div class="stat s-amber">
+            <div class="stat-lbl">In Draft</div>
+            <div class="stat-val">7</div>
+            <div class="stat-sub">2 awaiting approval</div>
+          </div>
+          <div class="stat s-purple">
+            <div class="stat-lbl">Projections</div>
+            <div class="stat-val">5</div>
+            <div class="stat-sub">For 2026 Q2 planning</div>
+          </div>
+          <div class="stat">
+            <div class="stat-lbl">Total Absorbed (MVR)</div>
+            <div class="stat-val">14.2M</div>
+            <div class="stat-sub">Landed cost YTD</div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active">All <span class="cnt">47</span></div>
+          <div class="tab">Actual <span class="cnt">42</span></div>
+          <div class="tab">Projection <span class="cnt">5</span></div>
+          <div class="tab">Drafts <span class="cnt">7</span></div>
+          <div class="tab">Pending Approval <span class="cnt">2</span></div>
+        </div>
+
+        <div class="card">
+          <div class="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sheet No.</th>
+                  <th>Date</th>
+                  <th>Vendor</th>
+                  <th>Invoice No.</th>
+                  <th>Items</th>
+                  <th class="num">Invoice Value</th>
+                  <th class="num">Landed Cost (MVR)</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="sheets-tbody">
+                <!-- populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────── SCREEN: BUILD SHEET ─────────── -->
+      <div class="screen" id="screen-build">
+        <div class="ph">
+          <div>
+            <div class="pt">
+              Build Cost Sheet
+              <span class="bdg b-draft" style="margin-left:8px"><span class="bd"></span>Draft</span>
+            </div>
+            <div class="ps">Sheet No: <span class="mono">PSMS/COS/2026/OR/46</span> · Auto-generated · Last saved 2 minutes ago</div>
+          </div>
+          <div class="brow">
+            <button class="btn" onclick="goScreen('cost-sheets')">← Back to list</button>
+            <button class="btn">💾 Save Draft</button>
+            <button class="btn">👁 Preview</button>
+            <button class="btn btn-p" onclick="goScreen('pricing')">Proceed to Pricing →</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" data-buildtab="header">1. Header</div>
+          <div class="tab" data-buildtab="upload">2. Upload Invoice <span class="ai-chip">AI</span></div>
+          <div class="tab" data-buildtab="items">3. Items <span class="cnt">8</span></div>
+          <div class="tab" data-buildtab="costs">4. Direct & Landing Costs</div>
+          <div class="tab" data-buildtab="distribution">5. Distribution & Result</div>
+        </div>
+
+        <!-- TAB: HEADER -->
+        <div class="build-tab" data-tab-pane="header">
+          <div class="card">
+            <div class="ch">
+              <div>
+                <div class="ct">Cost Sheet Header</div>
+                <div class="cs">Basic information about the shipment & supplier</div>
+              </div>
+              <span class="bdg b-info"><span class="bd"></span>Step 1 of 5</span>
+            </div>
+            <div class="cb">
+              <div class="fg4">
+                <div class="fg">
+                  <label class="fl">Sheet No <span class="req">*</span></label>
+                  <input class="inp mono" value="PSMS/COS/2026/OR/46">
+                </div>
+                <div class="fg">
+                  <label class="fl">Sheet Type <span class="req">*</span></label>
+                  <select class="sel">
+                    <option>Actual (Real Invoice)</option>
+                    <option>Future Projection</option>
+                    <option>Quotation Estimate</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Cost Sheet Date <span class="req">*</span></label>
+                  <input type="date" class="inp" value="2026-03-29">
+                </div>
+                <div class="fg">
+                  <label class="fl">Godown Received Date</label>
+                  <input type="date" class="inp" value="2026-03-29">
+                </div>
+              </div>
+
+              <div class="fg4">
+                <div class="fg">
+                  <label class="fl">Vendor / Supplier <span class="req">*</span></label>
+                  <select class="sel">
+                    <option>ORTHO CLINICAL DIAGNOSTICS INDIA</option>
+                    <option>+ Add new supplier...</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Invoice No</label>
+                  <input class="inp" value="PMV001725Z">
+                </div>
+                <div class="fg">
+                  <label class="fl">PO No</label>
+                  <input class="inp" placeholder="Optional">
+                </div>
+                <div class="fg">
+                  <label class="fl">BL / AWB No</label>
+                  <input class="inp" placeholder="Optional">
+                </div>
+              </div>
+
+              <div class="fg4">
+                <div class="fg">
+                  <label class="fl">Invoice Currency <span class="req">*</span></label>
+                  <select class="sel" id="inv-currency">
+                    <option>USD</option>
+                    <option>EUR</option>
+                    <option>GBP</option>
+                    <option>AED</option>
+                    <option>INR</option>
+                    <option>SGD</option>
+                    <option>JPY</option>
+                    <option>MVR</option>
+                  </select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Exchange Rate (to MVR) <span class="req">*</span></label>
+                  <input type="number" class="inp num" value="21.00" step="0.01">
+                </div>
+                <div class="fg">
+                  <label class="fl">Aprx ETA Male'</label>
+                  <input type="date" class="inp" value="2026-03-29">
+                </div>
+                <div class="fg">
+                  <label class="fl">Shipment Reference</label>
+                  <input class="inp" placeholder="Optional">
+                </div>
+              </div>
+
+              <div class="fg2">
+                <div class="fg">
+                  <label class="fl">Godown 1 (Primary)</label>
+                  <select class="sel"><option>Warehouse 1</option><option>Warehouse 2</option><option>Cold Storage</option></select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Godown 2 (Secondary)</label>
+                  <select class="sel"><option>— None —</option><option>Warehouse 2</option></select>
+                </div>
+              </div>
+
+              <div class="fg">
+                <label class="fl">Notes / Remarks</label>
+                <textarea class="txa" placeholder="Any special notes about this shipment..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div style="text-align:right">
+            <button class="btn btn-p" onclick="setBuildTab('upload')">Next: Upload Invoice →</button>
+          </div>
+        </div>
+
+        <!-- TAB: UPLOAD INVOICE -->
+        <div class="build-tab" data-tab-pane="upload" style="display:none">
+          <div class="card">
+            <div class="ch">
+              <div>
+                <div class="ct">AI Invoice Extraction <span class="ai-chip">Powered by Claude</span></div>
+                <div class="cs">Upload supplier invoice — AI will extract items, qty, unit price automatically</div>
+              </div>
+              <span class="bdg b-info"><span class="bd"></span>Step 2 of 5</span>
+            </div>
+            <div class="cb">
+              <div class="alert al-info">
+                <div class="ai">💡</div>
+                <div>
+                  <b>How it works:</b> Drop your supplier invoice (PDF, Excel, JPG/PNG image). Our AI reads the document and extracts every line item — description, quantity, unit price, and total. Review the extracted items before they're loaded into your cost sheet. You can also skip this and enter items manually.
+                </div>
+              </div>
+
+              <div class="dropzone" id="dropzone" onclick="document.getElementById('file-input').click()">
+                <div class="ic">📤</div>
+                <h4>Drop invoice file here or click to browse</h4>
+                <p>Supports PDF, Excel (.xlsx, .xls), CSV, JPG, PNG · Max 10 MB</p>
+                <div class="accepts">
+                  <span>📄 PDF</span>
+                  <span>📊 Excel</span>
+                  <span>🖼 Image</span>
+                </div>
+              </div>
+              <input type="file" id="file-input" style="display:none" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onchange="handleFile(event)">
+
+              <div id="extract-area" style="margin-top:14px;display:none"></div>
+
+              <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+                <div class="tiny muted">Or, skip AI extraction and enter items manually in the next step</div>
+                <div>
+                  <button class="btn" onclick="setBuildTab('header')">← Back</button>
+                  <button class="btn btn-p" onclick="setBuildTab('items')">Next: Items →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: ITEMS -->
+        <div class="build-tab" data-tab-pane="items" style="display:none">
+          <div class="card">
+            <div class="ch">
+              <div>
+                <div class="ct">Invoice Items</div>
+                <div class="cs">Each item with qty, unit price, weight (kg). Costs will be distributed based on these values.</div>
+              </div>
+              <div class="flex gap8">
+                <span class="bdg b-info"><span class="bd"></span>Step 3 of 5</span>
+                <button class="btn btn-sm" onclick="addItemRow()">+ Add Item</button>
+              </div>
+            </div>
+            <div class="cb dense">
+              <div class="tw">
+                <table id="items-table">
+                  <thead>
+                    <tr>
+                      <th style="width:30px">#</th>
+                      <th>Item Code</th>
+                      <th>Description</th>
+                      <th class="num">Qty</th>
+                      <th>Unit</th>
+                      <th class="num">Weight (kg)</th>
+                      <th class="num">Unit Price</th>
+                      <th class="num">Total (Invoice Currency)</th>
+                      <th class="num">Total (MVR)</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="items-tbody"></tbody>
+                  <tfoot>
+                    <tr class="foot">
+                      <td colspan="3"><b>Totals</b></td>
+                      <td class="num" id="sum-qty">0</td>
+                      <td></td>
+                      <td class="num" id="sum-wt">0.00</td>
+                      <td></td>
+                      <td class="num" id="sum-curr">0.00</td>
+                      <td class="num" id="sum-mvr">0.00</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between">
+            <button class="btn" onclick="setBuildTab('upload')">← Back</button>
+            <button class="btn btn-p" onclick="setBuildTab('costs')">Next: Costs →</button>
+          </div>
+        </div>
+
+        <!-- TAB: COSTS -->
+        <div class="build-tab" data-tab-pane="costs" style="display:none">
+          <div class="split">
+            <div>
+              <div class="card">
+                <div class="ch">
+                  <div>
+                    <div class="ct">1. Direct Cost</div>
+                    <div class="cs">Costs that form the base cost of items</div>
+                  </div>
+                  <span class="bdg b-info"><span class="bd"></span>Step 4 of 5</span>
+                </div>
+                <div class="cb dense">
+                  <div class="tw">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Srn</th>
+                          <th>Description</th>
+                          <th>Doc Ref</th>
+                          <th class="num">Amount</th>
+                          <th>Currency</th>
+                          <th class="num">Rate</th>
+                          <th class="num">Value (MVR)</th>
+                          <th>Absorb?</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="direct-tbody"></tbody>
+                      <tr class="foot">
+                        <td colspan="6"><b>Total Direct Cost (A)</b></td>
+                        <td class="num" id="total-direct">0.00</td>
+                        <td colspan="2"></td>
+                      </tr>
+                    </table>
+                  </div>
+                  <div style="padding:8px 12px;background:var(--s2);border-top:1px solid var(--border)">
+                    <button class="btn btn-xs" onclick="addCostRow('direct')">+ Add Direct Cost Line</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="ch">
+                  <div>
+                    <div class="ct">2. Landing Cost</div>
+                    <div class="cs">Costs incurred for landing/clearing — distributed across items</div>
+                  </div>
+                  <button class="btn btn-xs" onclick="addCostRow('landing')">+ Add Landing Cost</button>
+                </div>
+                <div class="cb dense">
+                  <div class="tw">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Srn</th>
+                          <th>Description</th>
+                          <th>Doc Ref</th>
+                          <th class="num">Amount</th>
+                          <th>Currency</th>
+                          <th class="num">Rate</th>
+                          <th class="num">Value (MVR)</th>
+                          <th>Absorb?</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="landing-tbody"></tbody>
+                      <tr class="foot">
+                        <td colspan="6"><b>Total Landing Cost (B)</b></td>
+                        <td class="num" id="total-landing">0.00</td>
+                        <td colspan="2"></td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="ch">
+                  <div>
+                    <div class="ct">3. Other Costs (Optional)</div>
+                    <div class="cs">Additional unforeseen or custom costs</div>
+                  </div>
+                  <button class="btn btn-xs" onclick="addCostRow('other')">+ Add Other Cost</button>
+                </div>
+                <div class="cb dense">
+                  <div class="tw">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Srn</th>
+                          <th>Description</th>
+                          <th>Doc Ref</th>
+                          <th class="num">Amount</th>
+                          <th>Currency</th>
+                          <th class="num">Rate</th>
+                          <th class="num">Value (MVR)</th>
+                          <th>Absorb?</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="other-tbody"></tbody>
+                      <tr class="foot">
+                        <td colspan="6"><b>Total Other Cost (C)</b></td>
+                        <td class="num" id="total-other">0.00</td>
+                        <td colspan="2"></td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sticky-sum">
+              <div class="card">
+                <div class="ch">
+                  <div class="ct">Cost Summary</div>
+                </div>
+                <div class="cb" style="font-size:12px">
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)">
+                    <span class="muted">Total Direct Cost (A)</span>
+                    <span class="bold mono" id="sum-A">0.00</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)">
+                    <span class="muted">Total Landing Cost (B)</span>
+                    <span class="bold mono" id="sum-B">0.00</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)">
+                    <span class="muted">Total Other Cost (C)</span>
+                    <span class="bold mono" id="sum-C">0.00</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)">
+                    <span class="muted">Landing + Other (D)</span>
+                    <span class="bold mono" id="sum-D">0.00</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:10px 8px;margin-top:8px;background:var(--blue2);border-radius:6px;font-size:13px">
+                    <span class="bold" style="color:var(--blue3)">Total to Distribute (A+D)</span>
+                    <span class="bold mono" id="sum-ALL" style="color:var(--blue3);font-size:15px">0.00</span>
+                  </div>
+
+                  <div class="alert al-warn" style="margin-top:14px;padding:8px 10px;font-size:11px">
+                    <div class="ai">⚠</div>
+                    <div><b>Star-marked costs</b> (Finance, Storage) are absorbing-only and excluded from price-setting decisions per PSMS policy.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="ch"><div class="ct">Cost Type Library</div></div>
+                <div class="cb tiny muted" style="line-height:1.7">
+                  Add new cost types anytime via <b>Reference → Cost Types</b>. Each can be flagged as star-absorbing (excluded from pricing) or full-absorbing (included).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;margin-top:8px">
+            <button class="btn" onclick="setBuildTab('items')">← Back</button>
+            <button class="btn btn-p" onclick="setBuildTab('distribution')">Next: Distribute →</button>
+          </div>
+        </div>
+
+        <!-- TAB: DISTRIBUTION -->
+        <div class="build-tab" data-tab-pane="distribution" style="display:none">
+          <div class="card">
+            <div class="ch">
+              <div>
+                <div class="ct">Cost Distribution Method</div>
+                <div class="cs">Choose how landing & other costs are allocated across items</div>
+              </div>
+              <span class="bdg b-info"><span class="bd"></span>Step 5 of 5</span>
+            </div>
+            <div class="cb">
+              <div class="fg3">
+                <label style="border:2px solid var(--blue);border-radius:var(--r);padding:14px;cursor:pointer;background:var(--blue2)">
+                  <div class="flex aic gap8">
+                    <input type="radio" name="dist-method" value="value" checked onchange="recalcDistribution()">
+                    <div>
+                      <div class="bold" style="color:var(--blue3)">By Item Value</div>
+                      <div class="tiny muted">Pro-rate based on each item's invoice value. <b>Default</b>.</div>
+                    </div>
+                  </div>
+                </label>
+                <label style="border:1px solid var(--border2);border-radius:var(--r);padding:14px;cursor:pointer">
+                  <div class="flex aic gap8">
+                    <input type="radio" name="dist-method" value="qty" onchange="recalcDistribution()">
+                    <div>
+                      <div class="bold">By Quantity</div>
+                      <div class="tiny muted">Each unit absorbs equal landing cost. Good for similar items.</div>
+                    </div>
+                  </div>
+                </label>
+                <label style="border:1px solid var(--border2);border-radius:var(--r);padding:14px;cursor:pointer">
+                  <div class="flex aic gap8">
+                    <input type="radio" name="dist-method" value="weight" onchange="recalcDistribution()">
+                    <div>
+                      <div class="bold">By Weight (kg)</div>
+                      <div class="tiny muted">For freight-heavy shipments where weight drives cost.</div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div class="alert al-info" style="margin-top:8px">
+                <div class="ai">ℹ</div>
+                <div>You can also <b>manually override</b> the absorbed cost for any item in the table below — useful when one item incurred special charges.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch">
+              <div>
+                <div class="ct">Item-wise Cost Distribution</div>
+                <div class="cs">Final landed cost per item after absorption</div>
+              </div>
+              <div class="flex gap8">
+                <button class="btn btn-sm">📋 Export</button>
+                <button class="btn btn-sm btn-p" onclick="goScreen('pricing')">→ Set Prices</button>
+              </div>
+            </div>
+            <div class="cb dense">
+              <div class="tw">
+                <table id="dist-table">
+                  <thead>
+                    <tr>
+                      <th>Item Code</th>
+                      <th>Description</th>
+                      <th class="num">Qty</th>
+                      <th class="num">Invoice Value (MVR)</th>
+                      <th class="num">Absorbed Cost (MVR)</th>
+                      <th class="num">Manual Override</th>
+                      <th class="num">Landed Cost (MVR)</th>
+                      <th class="num">Unit Landed Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dist-tbody"></tbody>
+                  <tr class="foot">
+                    <td colspan="3"><b>Totals</b></td>
+                    <td class="num" id="dist-inv">0.00</td>
+                    <td class="num" id="dist-abs">0.00</td>
+                    <td></td>
+                    <td class="num" id="dist-land">0.00</td>
+                    <td></td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between">
+            <button class="btn" onclick="setBuildTab('costs')">← Back</button>
+            <div class="flex gap8">
+              <button class="btn">💾 Save Sheet</button>
+              <button class="btn btn-s">✓ Finalize & Approve</button>
+              <button class="btn btn-p" onclick="goScreen('pricing')">→ Proceed to Price Decision</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────── SCREEN: PRICING ─────────── -->
+      <div class="screen" id="screen-pricing">
+        <div class="ph">
+          <div>
+            <div class="pt">Price Decision Sheet <span class="ai-chip" style="vertical-align:middle">AI Market Intel</span></div>
+            <div class="ps">Sheet: <span class="mono">PSMS/COS/2026/OR/46</span> · Compare your landed cost vs market prices · Decide final selling price</div>
+          </div>
+          <div class="brow">
+            <button class="btn" onclick="goScreen('build')">← Back to Sheet</button>
+            <button class="btn">💾 Save Decision</button>
+            <button class="btn btn-p" onclick="fetchAllMarketPrices()">🌐 Refresh Market Prices</button>
+          </div>
+        </div>
+
+        <div class="sgrid">
+          <div class="stat s-teal">
+            <div class="stat-lbl">Items to Price</div>
+            <div class="stat-val">8</div>
+            <div class="stat-sub">In this sheet</div>
+          </div>
+          <div class="stat s-green">
+            <div class="stat-lbl">Avg Margin (calc.)</div>
+            <div class="stat-val">28.4%</div>
+            <div class="stat-sub">At suggested prices</div>
+          </div>
+          <div class="stat s-amber">
+            <div class="stat-lbl">vs Market Avg</div>
+            <div class="stat-val">-4.2%</div>
+            <div class="stat-sub dn">Below market</div>
+          </div>
+          <div class="stat s-purple">
+            <div class="stat-lbl">Market Prices Found</div>
+            <div class="stat-val" id="mp-found">0</div>
+            <div class="stat-sub">Click refresh to load</div>
+          </div>
+          <div class="stat s-orange">
+            <div class="stat-lbl">Pending Decision</div>
+            <div class="stat-val">8</div>
+            <div class="stat-sub">Awaiting management</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ch">
+            <div>
+              <div class="ct">Item Pricing Matrix</div>
+              <div class="cs">Click any item to expand market price comparison · AI fetches at least 3 competitor prices</div>
+            </div>
+            <div class="flex gap8">
+              <select class="sel" style="font-size:11px">
+                <option>Target Margin: 30%</option>
+                <option>25%</option>
+                <option>35%</option>
+                <option>40%</option>
+              </select>
+              <button class="btn btn-sm">⚙ Pricing Rules</button>
+            </div>
+          </div>
+          <div class="cb dense">
+            <div class="tw">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Item Code</th>
+                    <th>Description</th>
+                    <th class="num">Landed Cost</th>
+                    <th class="num">Suggested Price</th>
+                    <th class="num">Market Avg</th>
+                    <th class="num">Margin %</th>
+                    <th class="num">Management Price</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="pricing-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="market-detail-area"></div>
+      </div>
+
+      <!-- ─────────── SCREEN: DASHBOARD ─────────── -->
+      <div class="screen" id="screen-dashboard">
+        <div class="ph">
+          <div>
+            <div class="pt">Cost Absorption Dashboard</div>
+            <div class="ps">Real-time overview of landed costs, margins, and pricing decisions</div>
+          </div>
+          <div class="brow">
+            <select class="sel" style="width:auto"><option>Last 30 days</option><option>This Quarter</option><option>This Year</option></select>
+            <button class="btn btn-p" onclick="goScreen('build')">+ New Cost Sheet</button>
+          </div>
+        </div>
+
+        <div class="sgrid">
+          <div class="stat"><div class="stat-lbl">Total Landed Cost YTD</div><div class="stat-val">MVR 14.2M</div><div class="stat-sub up">↑ 8.4%</div></div>
+          <div class="stat s-green"><div class="stat-lbl">Avg Margin Achieved</div><div class="stat-val">31.8%</div><div class="stat-sub up">↑ 2.1pp</div></div>
+          <div class="stat s-amber"><div class="stat-lbl">Open Cost Sheets</div><div class="stat-val">7</div><div class="stat-sub">2 awaiting approval</div></div>
+          <div class="stat s-purple"><div class="stat-lbl">AI Extractions</div><div class="stat-val">142</div><div class="stat-sub">Invoices auto-parsed</div></div>
+          <div class="stat s-teal"><div class="stat-lbl">Market Queries</div><div class="stat-val">486</div><div class="stat-sub">Price points collected</div></div>
+        </div>
+
+        <div class="split">
+          <div class="card">
+            <div class="ch"><div class="ct">Recent Activity</div></div>
+            <div class="cb dense">
+              <table>
+                <thead><tr><th>Time</th><th>Action</th><th>Sheet</th><th>User</th></tr></thead>
+                <tbody>
+                  <tr><td class="tiny muted">2 min ago</td><td>Draft saved</td><td class="mono">PSMS/COS/2026/OR/46</td><td>Dilanka C.</td></tr>
+                  <tr><td class="tiny muted">14 min ago</td><td>Market prices refreshed (8 items)</td><td class="mono">PSMS/COS/2026/OR/45</td><td>Dilanka C.</td></tr>
+                  <tr><td class="tiny muted">1 hr ago</td><td>Approved & finalized</td><td class="mono">PSMS/COS/2026/OR/44</td><td>Manager</td></tr>
+                  <tr><td class="tiny muted">3 hr ago</td><td>AI extracted 12 items from invoice PDF</td><td class="mono">PSMS/COS/2026/OR/45</td><td>Dilanka C.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><div class="ct">Quick Actions</div></div>
+            <div class="cb" style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn" onclick="goScreen('build')">📝 New Cost Sheet</button>
+              <button class="btn" onclick="goScreen('projections')">🔮 New Projection</button>
+              <button class="btn" onclick="goScreen('market')">🌐 Market Research</button>
+              <button class="btn" onclick="goScreen('reports')">📥 Download Reports</button>
+              <button class="btn" onclick="goScreen('costtypes')">+ Add Cost Type</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────── SCREEN: PROJECTIONS ─────────── -->
+      <div class="screen" id="screen-projections">
+        <div class="ph">
+          <div>
+            <div class="pt">Future Cost Projections</div>
+            <div class="ps">Plan ahead — create estimated cost sheets for upcoming purchases or quotations</div>
+          </div>
+          <div class="brow">
+            <button class="btn btn-p" onclick="goScreen('build')">+ New Projection</button>
+          </div>
+        </div>
+
+        <div class="alert al-info">
+          <div class="ai">🔮</div>
+          <div>Projections work exactly like actual cost sheets, but are flagged as <b>"Projection"</b> type. Use them for budgeting, quotation pricing, or planning future shipments. They don't post to inventory until converted to Actual.</div>
+        </div>
+
+        <div class="card">
+          <div class="tw">
+            <table>
+              <thead><tr><th>Sheet No.</th><th>Purpose</th><th>Supplier</th><th>Items</th><th class="num">Est. Landed Cost</th><th>Target Date</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <tr><td class="mono">PSMS/PRJ/2026/Q2/01</td><td>Q2 reagent restock</td><td>Roche Diagnostics</td><td>14</td><td class="num">MVR 680,000</td><td>15 Jun 2026</td><td><span class="bdg b-pap"><span class="bd"></span>Planning</span></td><td><button class="btn btn-xs">View</button></td></tr>
+                <tr><td class="mono">PSMS/PRJ/2026/Q2/02</td><td>New product launch — pricing</td><td>Abbott Labs</td><td>6</td><td class="num">MVR 245,000</td><td>01 Jul 2026</td><td><span class="bdg b-sub"><span class="bd"></span>Quote Sent</span></td><td><button class="btn btn-xs">View</button></td></tr>
+                <tr><td class="mono">PSMS/PRJ/2026/Q3/01</td><td>Annual contract — biochem</td><td>Beckman Coulter</td><td>22</td><td class="num">MVR 1,420,000</td><td>10 Aug 2026</td><td><span class="bdg b-draft"><span class="bd"></span>Draft</span></td><td><button class="btn btn-xs">View</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────── SCREEN: SUPPLIERS ─────────── -->
+      <div class="screen" id="screen-suppliers">
+        <div class="ph">
+          <div><div class="pt">Suppliers</div><div class="ps">Master list of vendors and their default currencies</div></div>
+          <div class="brow"><button class="btn btn-p">+ Add Supplier</button></div>
+        </div>
+        <div class="card"><div class="tw"><table>
+          <thead><tr><th>Code</th><th>Name</th><th>Country</th><th>Default Currency</th><th>Active Sheets</th><th>Total YTD</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">SUP-001</td><td>ORTHO CLINICAL DIAGNOSTICS INDIA</td><td>India</td><td>USD</td><td>4</td><td class="num">MVR 1,820,000</td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">SUP-002</td><td>Roche Diagnostics</td><td>Switzerland</td><td>EUR</td><td>2</td><td class="num">MVR 2,140,000</td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">SUP-003</td><td>Abbott Labs</td><td>USA</td><td>USD</td><td>6</td><td class="num">MVR 3,450,000</td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">SUP-004</td><td>Beckman Coulter</td><td>USA</td><td>USD</td><td>3</td><td class="num">MVR 1,290,000</td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">SUP-005</td><td>Sysmex Corporation</td><td>Japan</td><td>JPY</td><td>1</td><td class="num">MVR 480,000</td><td><button class="btn btn-xs">Edit</button></td></tr>
+          </tbody>
+        </table></div></div>
+      </div>
+
+      <!-- ─────────── SCREEN: CURRENCIES ─────────── -->
+      <div class="screen" id="screen-currencies">
+        <div class="ph">
+          <div><div class="pt">Currencies & Exchange Rates</div><div class="ps">Maintain daily MVR exchange rates for all invoice currencies</div></div>
+          <div class="brow"><button class="btn">🔄 Sync from MMA</button><button class="btn btn-p">+ Add Rate</button></div>
+        </div>
+        <div class="card"><div class="tw"><table>
+          <thead><tr><th>Code</th><th>Name</th><th class="num">Rate to MVR</th><th>Last Updated</th><th>Source</th><th>Active</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">USD</td><td>US Dollar</td><td class="num bold">21.00</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">EUR</td><td>Euro</td><td class="num bold">22.85</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">GBP</td><td>British Pound</td><td class="num bold">26.42</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">AED</td><td>UAE Dirham</td><td class="num bold">5.72</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">INR</td><td>Indian Rupee</td><td class="num bold">0.252</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">SGD</td><td>Singapore Dollar</td><td class="num bold">15.55</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+            <tr><td class="mono">JPY</td><td>Japanese Yen</td><td class="num bold">0.140</td><td>13 May 2026</td><td>MMA Reference</td><td><span class="bdg b-paid"><span class="bd"></span>Active</span></td><td><button class="btn btn-xs">Edit</button></td></tr>
+          </tbody>
+        </table></div></div>
+      </div>
+
+      <!-- ─────────── SCREEN: COST TYPES ─────────── -->
+      <div class="screen" id="screen-costtypes">
+        <div class="ph">
+          <div><div class="pt">Cost Type Library</div><div class="ps">Define every type of cost that can be added to a sheet — used in dropdowns</div></div>
+          <div class="brow"><button class="btn btn-p" onclick="openAddCostType()">+ Add Cost Type</button></div>
+        </div>
+        <div class="card"><div class="tw"><table>
+          <thead><tr><th>Code</th><th>Description</th><th>Category</th><th>Default Currency</th><th>Absorb to Items</th><th>Star (Pricing Excl.)</th><th>Active</th><th></th></tr></thead>
+          <tbody id="costtypes-tbody"></tbody>
+        </table></div></div>
+      </div>
+
+      <!-- ─────────── SCREEN: REPORTS ─────────── -->
+      <div class="screen" id="screen-reports">
+        <div class="ph">
+          <div><div class="pt">Downloads & Reports</div><div class="ps">Export any view to Excel, PDF, or CSV</div></div>
+        </div>
+
+        <div class="fg3">
+          <div class="card">
+            <div class="ch"><div><div class="ct">📋 Cost Sheet</div><div class="cs">Full sheet exactly as your PDF format</div></div></div>
+            <div class="cb">
+              <div class="tiny muted" style="margin-bottom:10px">Replicates the standard cost sheet layout — header, direct costs, landing costs, totals, signatures.</div>
+              <div class="flex gap8"><button class="btn btn-sm">📄 PDF</button><button class="btn btn-sm">📊 Excel</button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><div><div class="ct">📦 Item-wise Breakdown</div><div class="cs">Per-item landed cost & absorption detail</div></div></div>
+            <div class="cb">
+              <div class="tiny muted" style="margin-bottom:10px">Every item with invoice value, absorbed cost, manual overrides, and final landed unit cost.</div>
+              <div class="flex gap8"><button class="btn btn-sm">📄 PDF</button><button class="btn btn-sm">📊 Excel</button><button class="btn btn-sm">📋 CSV</button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><div><div class="ct">🌐 Market Comparison</div><div class="cs">Your prices vs competitor & brand prices</div></div></div>
+            <div class="cb">
+              <div class="tiny muted" style="margin-bottom:10px">Side-by-side comparison of suggested vs market prices, with competitor names, brands, and sources.</div>
+              <div class="flex gap8"><button class="btn btn-sm">📄 PDF</button><button class="btn btn-sm">📊 Excel</button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><div><div class="ct">💲 Price Decision Sheet</div><div class="cs">Final management-approved prices</div></div></div>
+            <div class="cb">
+              <div class="tiny muted" style="margin-bottom:10px">Includes calculated price, market average, manager override, justification notes, and approval signatures.</div>
+              <div class="flex gap8"><button class="btn btn-sm">📄 PDF</button><button class="btn btn-sm">📊 Excel</button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><div><div class="ct">📈 Margin Analysis</div><div class="cs">Profitability per item across all sheets</div></div></div>
+            <div class="cb">
+              <div class="tiny muted" style="margin-bottom:10px">Aggregate margin performance, top/bottom items by margin %, supplier comparisons.</div>
+              <div class="flex gap8"><button class="btn btn-sm">📄 PDF</button><button class="btn btn-sm">📊 Excel</button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><div><div class="ct">📜 Audit Trail</div><div class="cs">All changes, approvals, AI extractions</div></div></div>
+            <div class="cb">
+              <div class="tiny muted" style="margin-bottom:10px">Compliance log of who did what, when, and why — every cost sheet change tracked.</div>
+              <div class="flex gap8"><button class="btn btn-sm">📄 PDF</button><button class="btn btn-sm">📊 Excel</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────── SCREEN: MARKET INTELLIGENCE ─────────── -->
+      <div class="screen" id="screen-market">
+        <div class="ph">
+          <div><div class="pt">Market Intelligence <span class="ai-chip" style="vertical-align:middle">AI Powered</span></div><div class="ps">Ad-hoc product price research — find competitor & brand prices for any item</div></div>
+        </div>
+
+        <div class="card">
+          <div class="ch"><div><div class="ct">🔍 AI Product Price Search</div><div class="cs">Enter a product name, brand, or specs — AI finds 3+ market prices</div></div></div>
+          <div class="cb">
+            <div class="fg2">
+              <div class="fg">
+                <label class="fl">Product / Item Description <span class="req">*</span></label>
+                <input class="inp" id="mkt-q" placeholder="e.g. VITROS 5600 ECi/ECiQ reagent pack, 100 tests">
+              </div>
+              <div class="fg">
+                <label class="fl">Brand / Model (optional)</label>
+                <input class="inp" id="mkt-brand" placeholder="e.g. Ortho Clinical Diagnostics">
+              </div>
+            </div>
+            <div class="fg2">
+              <div class="fg">
+                <label class="fl">Target Region</label>
+                <select class="sel" id="mkt-region">
+                  <option>South Asia</option>
+                  <option>Maldives only</option>
+                  <option>Global</option>
+                  <option>Middle East</option>
+                </select>
+              </div>
+              <div class="fg">
+                <label class="fl">Preferred Currency</label>
+                <select class="sel" id="mkt-curr"><option>USD</option><option>MVR</option><option>EUR</option></select>
+              </div>
+            </div>
+            <button class="btn btn-p" onclick="adHocMarketSearch()">🌐 Search Market Prices</button>
+            <button class="btn" onclick="openManualPriceEntry()">✏ Enter Price Manually</button>
+          </div>
+        </div>
+
+        <div id="adhoc-results"></div>
+      </div>
+
+      <!-- ─────────── SCREEN: SETTINGS ─────────── -->
+      <div class="screen" id="screen-settings">
+        <div class="ph"><div><div class="pt">Configuration</div><div class="ps">System-wide preferences for cost absorption</div></div></div>
+
+        <div class="split">
+          <div>
+            <div class="card">
+              <div class="ch"><div class="ct">Default Distribution</div></div>
+              <div class="cb">
+                <div class="fg">
+                  <label class="fl">Default Method</label>
+                  <select class="sel"><option>By Item Value</option><option>By Quantity</option><option>By Weight</option></select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Round Landed Costs to</label>
+                  <select class="sel"><option>2 decimals (MVR 0.01)</option><option>Whole MVR</option><option>4 decimals</option></select>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="ch"><div class="ct">AI Settings</div></div>
+              <div class="cb">
+                <div class="fg">
+                  <label class="fl">Min market prices required</label>
+                  <select class="sel"><option>3 (recommended)</option><option>5</option><option>1</option></select>
+                </div>
+                <div class="fg">
+                  <label class="fl">Auto-extract on upload</label>
+                  <select class="sel"><option>Yes — extract immediately</option><option>No — confirm first</option></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="ch"><div class="ct">Pricing Defaults</div></div>
+              <div class="cb">
+                <div class="fg">
+                  <label class="fl">Default Target Margin</label>
+                  <input class="inp num" value="30" style="text-align:left"> %
+                </div>
+                <div class="fg">
+                  <label class="fl">Min Acceptable Margin</label>
+                  <input class="inp num" value="15" style="text-align:left"> %
+                </div>
+                <div class="fg">
+                  <label class="fl">Alert if below market by</label>
+                  <input class="inp num" value="10" style="text-align:left"> %
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="ch"><div class="ct">Approval Workflow</div></div>
+              <div class="cb tiny muted" style="line-height:1.7">
+                Cost sheets above <b>MVR 500,000</b> require Manager approval.<br>
+                Price decisions above <b>MVR 250,000</b> require Director approval.<br>
+                <button class="btn btn-xs" style="margin-top:8px">Edit Rules</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: Manual Price Entry ═══════════ -->
+<div class="modal-bg" id="modal-manual">
+  <div class="modal">
+    <div class="modal-h">
+      <h3>Enter Market Price Manually</h3>
+      <button class="close" onclick="closeModal('modal-manual')">×</button>
+    </div>
+    <div class="modal-b">
+      <div class="fg2">
+        <div class="fg"><label class="fl">Competitor / Source <span class="req">*</span></label><input class="inp" id="mp-comp" placeholder="e.g. STO Trade Center"></div>
+        <div class="fg"><label class="fl">Brand / Model</label><input class="inp" id="mp-brand" placeholder="e.g. Roche cobas"></div>
+      </div>
+      <div class="fg3">
+        <div class="fg"><label class="fl">Price <span class="req">*</span></label><input type="number" class="inp num" id="mp-price"></div>
+        <div class="fg"><label class="fl">Currency</label><select class="sel" id="mp-curr"><option>USD</option><option>MVR</option><option>EUR</option></select></div>
+        <div class="fg"><label class="fl">Unit / Pack Size</label><input class="inp" id="mp-pack" placeholder="100 tests, 1 unit, etc."></div>
+      </div>
+      <div class="fg"><label class="fl">Source URL / Reference</label><input class="inp" id="mp-src" placeholder="Optional — supplier quotation #, website, etc."></div>
+      <div class="fg"><label class="fl">Note</label><textarea class="txa" id="mp-note" placeholder="Any context..."></textarea></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal('modal-manual')">Cancel</button>
+      <button class="btn btn-p" onclick="saveManualPrice()">Save Price</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: Add Cost Type ═══════════ -->
+<div class="modal-bg" id="modal-costtype">
+  <div class="modal">
+    <div class="modal-h"><h3>Add Cost Type</h3><button class="close" onclick="closeModal('modal-costtype')">×</button></div>
+    <div class="modal-b">
+      <div class="fg2">
+        <div class="fg"><label class="fl">Code</label><input class="inp" placeholder="e.g. INSPECT-FEE"></div>
+        <div class="fg"><label class="fl">Description <span class="req">*</span></label><input class="inp" placeholder="e.g. Inspection Fee"></div>
+      </div>
+      <div class="fg2">
+        <div class="fg"><label class="fl">Category</label><select class="sel"><option>Direct</option><option>Landing</option><option>Other</option></select></div>
+        <div class="fg"><label class="fl">Default Currency</label><select class="sel"><option>MVR</option><option>USD</option><option>EUR</option></select></div>
+      </div>
+      <div class="fg2">
+        <div class="fg"><label class="fl">Absorb to Items</label><select class="sel"><option>Yes — distribute across items</option><option>No — keep separate</option></select></div>
+        <div class="fg"><label class="fl">Star (Exclude from Pricing)</label><select class="sel"><option>No — include in price decision</option><option>Yes — absorption only</option></select></div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal('modal-costtype')">Cancel</button>
+      <button class="btn btn-p" onclick="closeModal('modal-costtype')">Add Cost Type</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: Item Market Detail ═══════════ -->
+<div class="modal-bg" id="modal-market-detail">
+  <div class="modal lg">
+    <div class="modal-h"><h3 id="mmd-title">Market Price Comparison</h3><button class="close" onclick="closeModal('modal-market-detail')">×</button></div>
+    <div class="modal-b" id="mmd-body"></div>
+    <div class="modal-f">
+      <button class="btn" onclick="openManualPriceEntry()">+ Add Manual Price</button>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" onclick="closeModal('modal-market-detail')">Close</button>
+      <button class="btn btn-p" onclick="closeModal('modal-market-detail')">Apply to Decision</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   STATE & DATA
+   ═══════════════════════════════════════════════════════════════ */
+const state = {
+  exchangeRate: 21.00,
+  invCurrency: 'USD',
+  items: [
+    { code: 'ORT-VIT-001', desc: 'VITROS Reagent Pack — Glucose 100T',  qty: 20, unit: 'Pack', weight: 12,  unitPrice: 142.50 },
+    { code: 'ORT-VIT-002', desc: 'VITROS Reagent Pack — Creatinine 100T', qty: 15, unit: 'Pack', weight: 9,   unitPrice: 168.00 },
+    { code: 'ORT-VIT-003', desc: 'VITROS Calibrator Set Multi-test',     qty: 8,  unit: 'Set',  weight: 4.8, unitPrice: 285.00 },
+    { code: 'ORT-VIT-004', desc: 'VITROS Wash Solution 2L',              qty: 12, unit: 'Btl',  weight: 28,  unitPrice: 62.40  },
+    { code: 'ORT-VIT-005', desc: 'VITROS Quality Control L1/L2/L3',      qty: 6,  unit: 'Set',  weight: 3.6, unitPrice: 198.00 },
+    { code: 'ORT-VIT-006', desc: 'VITROS Sample Cups 5000pc',            qty: 4,  unit: 'Box',  weight: 16,  unitPrice: 78.50  },
+    { code: 'ORT-VIT-007', desc: 'VITROS Reagent — Cholesterol 100T',    qty: 18, unit: 'Pack', weight: 10.8,unitPrice: 152.20 },
+    { code: 'ORT-VIT-008', desc: 'VITROS Maintenance Kit Annual',        qty: 2,  unit: 'Kit',  weight: 6,   unitPrice: 425.00 }
+  ],
+  directCosts: [
+    { id: 1, desc: 'INVOICE VALUE',  ref: 'PMV001725Z', amount: 0, currency: 'USD', rate: 21.00, absorb: 'pricing' }, // auto-computed
+    { id: 2, desc: 'FINANCE COST',   ref: '',           amount: 21057.59, currency: 'MVR', rate: 1, absorb: 'star' }
+  ],
+  landingCosts: [
+    { id: 1,  desc: 'Clearing Charges',         ref: '', amount: 3466.80,  currency: 'MVR', rate: 1,     absorb: 'pricing' },
+    { id: 2,  desc: 'MPL Charges',              ref: '', amount: 3123.02,  currency: 'MVR', rate: 1,     absorb: 'pricing' },
+    { id: 3,  desc: 'Custom Charges',           ref: '', amount: 1561.23,  currency: 'MVR', rate: 1,     absorb: 'pricing' },
+    { id: 4,  desc: 'DO & THC Charges',         ref: '', amount: 832.80,   currency: 'MVR', rate: 1,     absorb: 'pricing' },
+    { id: 5,  desc: 'Transport Charges',        ref: '', amount: 4490.00,  currency: 'MVR', rate: 1,     absorb: 'pricing' },
+    { id: 6,  desc: 'Storage Charges',          ref: '', amount: 25269.11, currency: 'MVR', rate: 1,     absorb: 'star' },
+    { id: 7,  desc: 'Freight (Foreign)',        ref: '', amount: 0,        currency: 'USD', rate: 21.00, absorb: 'pricing' },
+    { id: 8,  desc: 'Insurance',                ref: '', amount: 0,        currency: 'MVR', rate: 1,     absorb: 'pricing' }
+  ],
+  otherCosts: [],
+  costTypes: [
+    { code: 'INV-VAL',   desc: 'Invoice Value',           cat: 'Direct',  curr: 'USD', absorb: 'Yes', star: 'No' },
+    { code: 'FIN-COST',  desc: 'Finance Cost',            cat: 'Direct',  curr: 'MVR', absorb: 'Yes', star: 'Yes' },
+    { code: 'CLR-CHG',   desc: 'Clearing Charges',        cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'MPL-CHG',   desc: 'MPL Charges',             cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'QUE-WALL',  desc: 'Que Wall Charges',        cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'CUS-CHG',   desc: 'Custom Charges',          cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'DO-THC',    desc: 'DO & THC Charges',        cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'DHN-CHG',   desc: 'Dhoni Charges',           cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'TRN-CHG',   desc: 'Transport Charges',       cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'DEMUR',     desc: 'Demurrage',               cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'FRT-LCL',   desc: 'Freight (Local)',         cat: 'Landing', curr: 'USD', absorb: 'Yes', star: 'No' },
+    { code: 'FRT-FRG',   desc: 'Freight (Foreign)',       cat: 'Landing', curr: 'USD', absorb: 'Yes', star: 'No' },
+    { code: 'INS',       desc: 'Insurance',               cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'BNK-CHG',   desc: 'Bank Charges',            cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' },
+    { code: 'STR-CHG',   desc: 'Storage Charges',         cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'Yes' },
+    { code: 'MPL-EXP',   desc: 'MPL Express Charges',     cat: 'Landing', curr: 'MVR', absorb: 'Yes', star: 'No' }
+  ],
+  distMethod: 'value',
+  manualOverrides: {},   // itemIndex -> override MVR
+  managementPrices: {},  // itemIndex -> management price
+  marketPrices: {}       // itemIndex -> [ { competitor, brand, price, currency, source, note } ]
+};
+
+const sheets = [
+  { sno: 'PSMS/COS/2026/OR/46', date: '29 Mar 26', vendor: 'ORTHO CLINICAL DIAGNOSTICS INDIA', inv: 'PMV001725Z', items: 8, invVal: '20,054.85 USD', land: '480,952.40', type: 'Actual', status: 'draft' },
+  { sno: 'PSMS/COS/2026/OR/45', date: '22 Mar 26', vendor: 'Roche Diagnostics',                inv: 'RD-90014',   items: 12,invVal: '34,200.00 EUR', land: '798,420.50', type: 'Actual', status: 'paid' },
+  { sno: 'PSMS/COS/2026/OR/44', date: '18 Mar 26', vendor: 'Abbott Labs',                      inv: 'AB-2026-148',items: 6, invVal: '18,750.00 USD', land: '423,890.20', type: 'Actual', status: 'paid' },
+  { sno: 'PSMS/COS/2026/OR/43', date: '14 Mar 26', vendor: 'Beckman Coulter',                  inv: 'BC-7782',    items: 9, invVal: '22,400.00 USD', land: '512,300.80', type: 'Actual', status: 'pap' },
+  { sno: 'PSMS/PRJ/2026/Q2/01', date: '11 Mar 26', vendor: 'Roche Diagnostics',                inv: '—',          items: 14,invVal: '28,000.00 EUR (est)', land: '680,000.00', type: 'Projection', status: 'draft' },
+  { sno: 'PSMS/COS/2026/OR/42', date: '05 Mar 26', vendor: 'Sysmex Corporation',               inv: 'SX-118',     items: 5, invVal: '3,200,000 JPY', land: '480,200.00', type: 'Actual', status: 'paid' },
+  { sno: 'PSMS/COS/2026/OR/41', date: '01 Mar 26', vendor: 'ORTHO CLINICAL DIAGNOSTICS INDIA', inv: 'PMV001689Y', items: 11,invVal: '16,890.00 USD', land: '381,420.60', type: 'Actual', status: 'rej' }
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════════════════════════ */
+function goScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById('screen-' + name);
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  const nav = document.querySelector(`.ni[data-screen="${name}"]`);
+  if (nav) nav.classList.add('active');
+  // refresh data on certain screens
+  if (name === 'pricing') renderPricingTable();
+  if (name === 'cost-sheets') renderSheetsList();
+}
+document.querySelectorAll('.ni').forEach(n => {
+  n.addEventListener('click', () => goScreen(n.dataset.screen));
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   BUILD TABS
+   ═══════════════════════════════════════════════════════════════ */
+function setBuildTab(name) {
+  document.querySelectorAll('[data-buildtab]').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('[data-buildtab="' + name + '"]').forEach(t => t.classList.add('active'));
+  document.querySelectorAll('.build-tab').forEach(p => p.style.display = 'none');
+  document.querySelector('[data-tab-pane="' + name + '"]').style.display = 'block';
+}
+document.querySelectorAll('[data-buildtab]').forEach(t => {
+  t.addEventListener('click', () => setBuildTab(t.dataset.buildtab));
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   FORMATTING
+   ═══════════════════════════════════════════════════════════════ */
+const fmt = (n, dp = 2) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const fmtInt = n => Number(n || 0).toLocaleString('en-US');
+
+/* ═══════════════════════════════════════════════════════════════
+   SHEETS LIST
+   ═══════════════════════════════════════════════════════════════ */
+function renderSheetsList() {
+  const tbody = document.getElementById('sheets-tbody');
+  const statusMap = {
+    draft: ['b-draft', 'Draft'],
+    sub:   ['b-sub', 'Submitted'],
+    pap:   ['b-pap', 'Pending Approval'],
+    paid:  ['b-paid', 'Finalized'],
+    rej:   ['b-rej', 'Rejected']
+  };
+  tbody.innerHTML = sheets.map(s => `
+    <tr>
+      <td><span class="mono">${s.sno}</span></td>
+      <td>${s.date}</td>
+      <td>${s.vendor}</td>
+      <td class="mono tiny">${s.inv}</td>
+      <td class="num">${s.items}</td>
+      <td class="num">${s.invVal}</td>
+      <td class="num bold">${s.land}</td>
+      <td><span class="tag-pill">${s.type}</span></td>
+      <td><span class="bdg ${statusMap[s.status][0]}"><span class="bd"></span>${statusMap[s.status][1]}</span></td>
+      <td><div class="row-act">
+        <button class="iconbtn" title="View" onclick="goScreen('build')">👁</button>
+        <button class="iconbtn" title="Edit" onclick="goScreen('build')">✏</button>
+        <button class="iconbtn" title="Download">📥</button>
+      </div></td>
+    </tr>
+  `).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ITEMS TABLE
+   ═══════════════════════════════════════════════════════════════ */
+function renderItems() {
+  const tbody = document.getElementById('items-tbody');
+  let sumQty = 0, sumWt = 0, sumCurr = 0, sumMvr = 0;
+  tbody.innerHTML = state.items.map((it, i) => {
+    const total = it.qty * it.unitPrice;
+    const mvr = total * state.exchangeRate;
+    sumQty += Number(it.qty);
+    sumWt += Number(it.weight);
+    sumCurr += total;
+    sumMvr += mvr;
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td><input class="inp mono" value="${it.code}" onchange="updateItem(${i}, 'code', this.value)"></td>
+        <td><input class="inp" value="${it.desc}" onchange="updateItem(${i}, 'desc', this.value)"></td>
+        <td class="num"><input class="inp num" type="number" value="${it.qty}" onchange="updateItem(${i}, 'qty', this.value)"></td>
+        <td><input class="inp" value="${it.unit}" onchange="updateItem(${i}, 'unit', this.value)" style="width:70px"></td>
+        <td class="num"><input class="inp num" type="number" step="0.01" value="${it.weight}" onchange="updateItem(${i}, 'weight', this.value)"></td>
+        <td class="num"><input class="inp num" type="number" step="0.01" value="${it.unitPrice}" onchange="updateItem(${i}, 'unitPrice', this.value)"></td>
+        <td class="num bold">${fmt(total)}</td>
+        <td class="num bold">${fmt(mvr)}</td>
+        <td><button class="iconbtn del" onclick="removeItem(${i})">×</button></td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('sum-qty').textContent = fmtInt(sumQty);
+  document.getElementById('sum-wt').textContent = fmt(sumWt);
+  document.getElementById('sum-curr').textContent = fmt(sumCurr);
+  document.getElementById('sum-mvr').textContent = fmt(sumMvr);
+
+  // update invoice value in direct costs
+  state.directCosts[0].amount = sumCurr;
+  state.directCosts[0].rate = state.exchangeRate;
+  renderCosts();
+}
+
+function updateItem(i, field, val) {
+  state.items[i][field] = (field === 'desc' || field === 'unit' || field === 'code') ? val : Number(val);
+  renderItems();
+}
+function addItemRow() {
+  state.items.push({ code: '', desc: 'New item', qty: 1, unit: 'EA', weight: 0, unitPrice: 0 });
+  renderItems();
+}
+function removeItem(i) {
+  state.items.splice(i, 1);
+  renderItems();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COSTS TABLES
+   ═══════════════════════════════════════════════════════════════ */
+function renderCostTable(arr, tbodyId, srnPrefix) {
+  const tbody = document.getElementById(tbodyId);
+  let total = 0;
+  tbody.innerHTML = arr.map((c, i) => {
+    const mvr = Number(c.amount) * Number(c.rate);
+    total += mvr;
+    const starLabel = c.absorb === 'star' ? 'Star (Excl)' : c.absorb === 'pricing' ? 'Full' : 'No';
+    const starClass = c.absorb === 'star' ? 'b-pap' : c.absorb === 'pricing' ? 'b-paid' : 'b-draft';
+    return `
+      <tr>
+        <td>${srnPrefix}.${i + 1}</td>
+        <td>
+          <select class="sel" onchange="updateCost('${tbodyId}', ${i}, 'desc', this.value)">
+            ${state.costTypes.filter(ct => srnPrefix === '1' ? ct.cat === 'Direct' : srnPrefix === '2' ? ct.cat === 'Landing' : true)
+              .map(ct => `<option ${ct.desc === c.desc ? 'selected' : ''}>${ct.desc}</option>`).join('')}
+          </select>
+        </td>
+        <td><input class="inp" value="${c.ref}" onchange="updateCost('${tbodyId}', ${i}, 'ref', this.value)" style="width:90px"></td>
+        <td class="num"><input class="inp num" type="number" step="0.01" value="${c.amount}" onchange="updateCost('${tbodyId}', ${i}, 'amount', this.value)"></td>
+        <td>
+          <select class="sel" onchange="updateCost('${tbodyId}', ${i}, 'currency', this.value)">
+            ${['MVR','USD','EUR','GBP','AED','INR','SGD','JPY'].map(cu => `<option ${cu === c.currency ? 'selected' : ''}>${cu}</option>`).join('')}
+          </select>
+        </td>
+        <td class="num"><input class="inp num" type="number" step="0.01" value="${c.rate}" onchange="updateCost('${tbodyId}', ${i}, 'rate', this.value)" style="width:70px"></td>
+        <td class="num bold">${fmt(mvr)}</td>
+        <td>
+          <select class="sel" onchange="updateCost('${tbodyId}', ${i}, 'absorb', this.value)" style="font-size:10.5px">
+            <option value="pricing" ${c.absorb === 'pricing' ? 'selected' : ''}>Full Absorb</option>
+            <option value="star" ${c.absorb === 'star' ? 'selected' : ''}>★ Star (Absorb only)</option>
+            <option value="none" ${c.absorb === 'none' ? 'selected' : ''}>Don't Absorb</option>
+          </select>
+        </td>
+        <td><button class="iconbtn del" onclick="removeCostRow('${tbodyId}', ${i})">×</button></td>
+      </tr>
+    `;
+  }).join('');
+  return total;
+}
+
+function renderCosts() {
+  const directTot  = renderCostTable(state.directCosts,  'direct-tbody',  '1');
+  const landingTot = renderCostTable(state.landingCosts, 'landing-tbody', '2');
+  const otherTot   = renderCostTable(state.otherCosts,   'other-tbody',   '3');
+
+  document.getElementById('total-direct').textContent  = fmt(directTot);
+  document.getElementById('total-landing').textContent = fmt(landingTot);
+  document.getElementById('total-other').textContent   = fmt(otherTot);
+
+  document.getElementById('sum-A').textContent = fmt(directTot);
+  document.getElementById('sum-B').textContent = fmt(landingTot);
+  document.getElementById('sum-C').textContent = fmt(otherTot);
+  document.getElementById('sum-D').textContent = fmt(landingTot + otherTot);
+  document.getElementById('sum-ALL').textContent = fmt(directTot + landingTot + otherTot);
+
+  recalcDistribution();
+}
+
+function updateCost(tbodyId, i, field, val) {
+  const arr = tbodyId === 'direct-tbody'  ? state.directCosts  :
+              tbodyId === 'landing-tbody' ? state.landingCosts : state.otherCosts;
+  arr[i][field] = (field === 'desc' || field === 'ref' || field === 'currency' || field === 'absorb') ? val : Number(val);
+  renderCosts();
+}
+function addCostRow(type) {
+  const arr = type === 'direct' ? state.directCosts : type === 'landing' ? state.landingCosts : state.otherCosts;
+  arr.push({ id: Date.now(), desc: 'New cost', ref: '', amount: 0, currency: 'MVR', rate: 1, absorb: 'pricing' });
+  renderCosts();
+}
+function removeCostRow(tbodyId, i) {
+  const arr = tbodyId === 'direct-tbody' ? state.directCosts : tbodyId === 'landing-tbody' ? state.landingCosts : state.otherCosts;
+  arr.splice(i, 1);
+  renderCosts();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DISTRIBUTION
+   ═══════════════════════════════════════════════════════════════ */
+function getItemMVRValues() {
+  return state.items.map(it => it.qty * it.unitPrice * state.exchangeRate);
+}
+
+function getLandingToDistribute() {
+  // Landing + Other costs (excluding "none" absorb)
+  let sum = 0;
+  state.landingCosts.forEach(c => { if (c.absorb !== 'none') sum += c.amount * c.rate; });
+  state.otherCosts.forEach(c =>   { if (c.absorb !== 'none') sum += c.amount * c.rate; });
+  // Plus finance/star direct costs that are absorbed
+  state.directCosts.slice(1).forEach(c => { if (c.absorb !== 'none') sum += c.amount * c.rate; });
+  return sum;
+}
+
+function recalcDistribution() {
+  state.distMethod = document.querySelector('input[name="dist-method"]:checked')?.value || 'value';
+  // visual highlight
+  document.querySelectorAll('input[name="dist-method"]').forEach(r => {
+    const label = r.closest('label');
+    if (r.checked) { label.style.border = '2px solid var(--blue)'; label.style.background = 'var(--blue2)'; }
+    else { label.style.border = '1px solid var(--border2)'; label.style.background = 'var(--surface)'; }
+  });
+
+  const tbody = document.getElementById('dist-tbody');
+  if (!tbody) return;
+
+  const itemMVR = getItemMVRValues();
+  const totalMVR = itemMVR.reduce((a, b) => a + b, 0);
+  const totalQty = state.items.reduce((a, b) => a + b.qty, 0);
+  const totalWt = state.items.reduce((a, b) => a + (b.weight * b.qty), 0);
+  const toDistribute = getLandingToDistribute();
+
+  let totalInv = 0, totalAbs = 0, totalLand = 0;
+  tbody.innerHTML = state.items.map((it, i) => {
+    const itemQty = it.qty;
+    const itemWt = it.weight * it.qty;
+    const itemVal = itemMVR[i];
+
+    let weight;
+    if (state.distMethod === 'value')      weight = totalMVR > 0 ? itemVal / totalMVR : 0;
+    else if (state.distMethod === 'qty')   weight = totalQty > 0 ? itemQty / totalQty : 0;
+    else if (state.distMethod === 'weight') weight = totalWt > 0  ? itemWt  / totalWt  : 0;
+
+    const calcAbsorbed = toDistribute * weight;
+    const override = state.manualOverrides[i];
+    const absorbed = override !== undefined ? Number(override) : calcAbsorbed;
+    const landed = itemVal + absorbed;
+    const unitLanded = landed / itemQty;
+
+    totalInv += itemVal;
+    totalAbs += absorbed;
+    totalLand += landed;
+
+    return `
+      <tr>
+        <td><span class="mono">${it.code}</span></td>
+        <td>${it.desc}</td>
+        <td class="num">${fmtInt(itemQty)}</td>
+        <td class="num">${fmt(itemVal)}</td>
+        <td class="num">${fmt(absorbed)}</td>
+        <td class="num">
+          <input class="inp num" type="number" step="0.01" placeholder="${fmt(calcAbsorbed)}"
+            value="${override !== undefined ? override : ''}"
+            onchange="setOverride(${i}, this.value)" style="width:110px">
+        </td>
+        <td class="num bold" style="color:var(--blue3)">${fmt(landed)}</td>
+        <td class="num">${fmt(unitLanded)}</td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('dist-inv').textContent = fmt(totalInv);
+  document.getElementById('dist-abs').textContent = fmt(totalAbs);
+  document.getElementById('dist-land').textContent = fmt(totalLand);
+}
+
+function setOverride(i, val) {
+  if (val === '' || val === null) delete state.manualOverrides[i];
+  else state.manualOverrides[i] = val;
+  recalcDistribution();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COST TYPES TABLE
+   ═══════════════════════════════════════════════════════════════ */
+function renderCostTypes() {
+  document.getElementById('costtypes-tbody').innerHTML = state.costTypes.map(c => `
+    <tr>
+      <td><span class="mono">${c.code}</span></td>
+      <td>${c.desc}</td>
+      <td><span class="tag-pill">${c.cat}</span></td>
+      <td>${c.curr}</td>
+      <td>${c.absorb === 'Yes' ? '<span class="bdg b-paid"><span class="bd"></span>Yes</span>' : '<span class="bdg b-draft"><span class="bd"></span>No</span>'}</td>
+      <td>${c.star === 'Yes' ? '<span class="bdg b-pap"><span class="bd"></span>★ Star</span>' : '<span class="bdg b-draft"><span class="bd"></span>—</span>'}</td>
+      <td><span class="bdg b-paid"><span class="bd"></span>Active</span></td>
+      <td><div class="row-act"><button class="iconbtn">✏</button><button class="iconbtn del">×</button></div></td>
+    </tr>
+  `).join('');
+}
+function openAddCostType() { document.getElementById('modal-costtype').classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+/* ═══════════════════════════════════════════════════════════════
+   PRICING TABLE
+   ═══════════════════════════════════════════════════════════════ */
+function renderPricingTable() {
+  const tbody = document.getElementById('pricing-tbody');
+  if (!tbody) return;
+
+  const itemMVR = getItemMVRValues();
+  const totalMVR = itemMVR.reduce((a, b) => a + b, 0);
+  const totalQty = state.items.reduce((a, b) => a + b.qty, 0);
+  const totalWt = state.items.reduce((a, b) => a + (b.weight * b.qty), 0);
+  const toDistribute = getLandingToDistribute();
+  const targetMargin = 0.30;
+
+  let foundCount = 0;
+  tbody.innerHTML = state.items.map((it, i) => {
+    const itemVal = itemMVR[i];
+    let weight;
+    if (state.distMethod === 'value')      weight = totalMVR > 0 ? itemVal / totalMVR : 0;
+    else if (state.distMethod === 'qty')   weight = totalQty > 0 ? it.qty / totalQty : 0;
+    else                                    weight = totalWt > 0 ? (it.weight * it.qty) / totalWt : 0;
+    const calcAbsorbed = toDistribute * weight;
+    const override = state.manualOverrides[i];
+    const absorbed = override !== undefined ? Number(override) : calcAbsorbed;
+    const landed = itemVal + absorbed;
+    const unitLanded = landed / it.qty;
+    const suggestedPrice = unitLanded * (1 + targetMargin);
+
+    const mp = state.marketPrices[i] || [];
+    if (mp.length) foundCount += mp.length;
+    const mktAvg = mp.length ? mp.reduce((a, b) => a + Number(b.priceMVR || 0), 0) / mp.length : null;
+    const mgr = state.managementPrices[i];
+    const finalPrice = mgr !== undefined ? Number(mgr) : suggestedPrice;
+    const margin = ((finalPrice - unitLanded) / finalPrice) * 100;
+    const marginCls = margin >= 25 ? 'b-paid' : margin >= 15 ? 'b-pap' : 'b-rej';
+    const status = mgr !== undefined ? '<span class="bdg b-paid"><span class="bd"></span>Decided</span>' : '<span class="bdg b-pap"><span class="bd"></span>Pending</span>';
+    const mktCell = mktAvg !== null
+      ? `<span class="bold">${fmt(mktAvg)}</span><span class="tiny muted"> (${mp.length})</span>`
+      : `<button class="btn btn-xs btn-p" onclick="fetchMarketPrices(${i})">🌐 Fetch</button>`;
+
+    return `
+      <tr>
+        <td><button class="iconbtn" onclick="showMarketDetail(${i})" title="View market detail">▶</button></td>
+        <td><span class="mono">${it.code}</span></td>
+        <td>${it.desc}</td>
+        <td class="num">${fmt(unitLanded)}</td>
+        <td class="num bold">${fmt(suggestedPrice)}</td>
+        <td class="num">${mktCell}</td>
+        <td class="num"><span class="bdg ${marginCls}"><span class="bd"></span>${margin.toFixed(1)}%</span></td>
+        <td class="num"><input class="inp num" type="number" step="0.01" placeholder="${fmt(suggestedPrice)}"
+            value="${mgr !== undefined ? mgr : ''}" onchange="setMgmtPrice(${i}, this.value)" style="width:110px"></td>
+        <td>${status}</td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('mp-found').textContent = foundCount;
+}
+
+function setMgmtPrice(i, val) {
+  if (val === '' || val === null) delete state.managementPrices[i];
+  else state.managementPrices[i] = val;
+  renderPricingTable();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI: ANTHROPIC API HELPER
+   ═══════════════════════════════════════════════════════════════ */
+async function callClaude(userMessage, systemPrompt = null) {
+  const body = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: userMessage }]
+  };
+  if (systemPrompt) body.system = systemPrompt;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('AI request failed: ' + res.status);
+  const data = await res.json();
+  // collect all text blocks
+  return data.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+}
+
+async function callClaudeWithImage(imageBase64, mediaType, userMessage, systemPrompt = null) {
+  const body = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 2000,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+        { type: 'text', text: userMessage }
+      ]
+    }]
+  };
+  if (systemPrompt) body.system = systemPrompt;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('AI image request failed: ' + res.status);
+  const data = await res.json();
+  return data.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+}
+
+async function callClaudeWithPDF(pdfBase64, userMessage) {
+  const body = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 2000,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 } },
+        { type: 'text', text: userMessage }
+      ]
+    }]
+  };
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('AI PDF request failed: ' + res.status);
+  const data = await res.json();
+  return data.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+}
+
+function extractJSON(text) {
+  // strip code fences
+  const cleaned = text.replace(/```json|```/g, '').trim();
+  // try direct parse; else find first { or [
+  try { return JSON.parse(cleaned); } catch (_) {}
+  const m = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (m) return JSON.parse(m[0]);
+  throw new Error('Could not parse JSON from AI response');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI: INVOICE EXTRACTION
+   ═══════════════════════════════════════════════════════════════ */
+async function handleFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const area = document.getElementById('extract-area');
+  area.style.display = 'block';
+  area.innerHTML = `
+    <div class="ai-load">
+      <div class="spinner"></div>
+      <div>AI is reading <b>${file.name}</b> and extracting line items...</div>
+    </div>
+  `;
+
+  try {
+    const base64 = await fileToBase64(file);
+    const ext = file.name.split('.').pop().toLowerCase();
+    let aiText;
+
+    const prompt = `You are a procurement invoice parser. Extract every line item from this supplier invoice.
+
+Return ONLY a JSON array of objects with these exact keys: code, desc, qty, unit, weight, unitPrice.
+- code: item/SKU code if visible, else empty string
+- desc: item description (full)
+- qty: numeric quantity
+- unit: unit of measure (PC, BOX, KG, etc) — default "EA" if unknown
+- weight: weight in kg if shown, else 0
+- unitPrice: numeric unit price in the invoice currency
+
+Also return the invoice header at the end as a SEPARATE JSON object on its own line:
+{"_header": {"invoiceNo": "...", "vendor": "...", "currency": "USD", "total": 0}}
+
+Return both as: { "header": {...}, "items": [...] }
+No prose, no markdown, no code fences. Just the JSON object.`;
+
+    if (ext === 'pdf') {
+      aiText = await callClaudeWithPDF(base64, prompt);
+    } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
+      const mt = ext === 'png' ? 'image/png' : 'image/jpeg';
+      aiText = await callClaudeWithImage(base64, mt, prompt);
+    } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
+      // For Excel, we send as text — extract the text content
+      const textContent = await file.text().catch(() => null);
+      if (textContent && ext === 'csv') {
+        aiText = await callClaude(prompt + '\n\nCSV content:\n' + textContent.slice(0, 8000));
+      } else {
+        // For .xlsx we can't easily parse client-side without a library — show graceful message
+        area.innerHTML = `
+          <div class="alert al-warn">
+            <div class="ai">⚠</div>
+            <div><b>Excel parsing:</b> For .xlsx files, please save as CSV first, or upload a PDF/image version. Manual entry is also available in the next step.</div>
+          </div>
+          <button class="btn" onclick="document.getElementById('extract-area').style.display='none'">Dismiss</button>
+        `;
+        return;
+      }
+    } else {
+      throw new Error('Unsupported file type');
+    }
+
+    const result = extractJSON(aiText);
+    const items = result.items || result;
+    const header = result.header || {};
+
+    // Show preview
+    area.innerHTML = `
+      <div class="alert al-ok">
+        <div class="ai">✓</div>
+        <div><b>AI extracted ${items.length} items</b> from ${file.name}. Review below and confirm to load into the cost sheet.</div>
+      </div>
+      ${header.invoiceNo || header.vendor ? `
+        <div class="card">
+          <div class="ch"><div class="ct">Detected Header</div></div>
+          <div class="cb tiny">
+            ${header.vendor ? `<div><b>Vendor:</b> ${header.vendor}</div>` : ''}
+            ${header.invoiceNo ? `<div><b>Invoice No:</b> ${header.invoiceNo}</div>` : ''}
+            ${header.currency ? `<div><b>Currency:</b> ${header.currency}</div>` : ''}
+            ${header.total ? `<div><b>Total:</b> ${header.total}</div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+      <div class="card">
+        <div class="ch">
+          <div class="ct">Extracted Items (${items.length})</div>
+          <div class="flex gap8">
+            <button class="btn btn-sm" onclick="document.getElementById('extract-area').style.display='none'">✕ Discard</button>
+            <button class="btn btn-sm btn-s" onclick='loadExtractedItems(${JSON.stringify(items).replace(/'/g, "&apos;")})'>✓ Load into Sheet</button>
+          </div>
+        </div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Code</th><th>Description</th><th class="num">Qty</th><th>Unit</th><th class="num">Wt (kg)</th><th class="num">Unit Price</th></tr></thead>
+            <tbody>
+              ${items.map(it => `
+                <tr>
+                  <td class="mono">${it.code || '—'}</td>
+                  <td>${it.desc || ''}</td>
+                  <td class="num">${it.qty || 0}</td>
+                  <td>${it.unit || 'EA'}</td>
+                  <td class="num">${it.weight || 0}</td>
+                  <td class="num">${fmt(it.unitPrice || 0)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+  } catch (err) {
+    area.innerHTML = `
+      <div class="alert al-err">
+        <div class="ai">✕</div>
+        <div><b>AI extraction failed:</b> ${err.message}. You can still enter items manually in the next step.</div>
+      </div>
+      <button class="btn" onclick="document.getElementById('extract-area').style.display='none'">Dismiss</button>
+    `;
+  }
+}
+
+function loadExtractedItems(items) {
+  if (!confirm(`Replace current ${state.items.length} items with ${items.length} extracted items?`)) return;
+  state.items = items.map(it => ({
+    code: it.code || '',
+    desc: it.desc || '',
+    qty: Number(it.qty) || 1,
+    unit: it.unit || 'EA',
+    weight: Number(it.weight) || 0,
+    unitPrice: Number(it.unitPrice) || 0
+  }));
+  renderItems();
+  setBuildTab('items');
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = () => reject(new Error('Read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+// Drag & drop
+const dz = document.getElementById('dropzone');
+if (dz) {
+  ['dragenter', 'dragover'].forEach(e => dz.addEventListener(e, ev => {
+    ev.preventDefault(); ev.stopPropagation(); dz.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach(e => dz.addEventListener(e, ev => {
+    ev.preventDefault(); ev.stopPropagation(); dz.classList.remove('dragover');
+  }));
+  dz.addEventListener('drop', ev => {
+    const files = ev.dataTransfer.files;
+    if (files.length) {
+      document.getElementById('file-input').files = files;
+      handleFile({ target: { files } });
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI: MARKET PRICE SEARCH
+   ═══════════════════════════════════════════════════════════════ */
+async function fetchMarketPrices(itemIdx) {
+  const item = state.items[itemIdx];
+  const detailArea = document.getElementById('market-detail-area');
+  detailArea.innerHTML = `
+    <div class="card">
+      <div class="ch"><div class="ct">🌐 Searching market for: <span class="mono">${item.code}</span> — ${item.desc}</div></div>
+      <div class="cb">
+        <div class="ai-load">
+          <div class="spinner"></div>
+          <div>AI is searching market prices from competitors and online sources...</div>
+        </div>
+      </div>
+    </div>
+  `;
+  detailArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    const prompt = `You are a medical-diagnostics market price researcher. Find competitor and alternative-brand prices for this product, focused on Maldives and South Asia distributor pricing.
+
+Product: "${item.desc}"
+Item code: ${item.code}
+Currency reference: USD (will convert to MVR at 21.00)
+
+Return a JSON array of at least 3 price points. Each entry MUST have:
+- competitor: company/distributor name (string)
+- brand: equivalent brand name if different (string, can be same as product)
+- price: numeric price (number)
+- currency: "USD" | "MVR" | "EUR" (string)
+- packSize: pack size description (string, e.g. "100 tests", "1 unit")
+- source: brief source description (string, e.g. "Public distributor quote, Q1 2026", "Online medical supply marketplace")
+- note: 1-line context (string) — note differences in brand/spec if relevant
+
+Use realistic medical distributor pricing for diagnostic reagents. If you genuinely cannot find equivalent products, generate plausible Maldives/South-Asia market estimates and clearly mark in "note" that these are AI estimates pending manual verification.
+
+Return ONLY the JSON array. No prose, no markdown, no code fences.`;
+
+    const aiText = await callClaude(prompt);
+    const prices = extractJSON(aiText);
+
+    // Normalize and compute MVR
+    const fx = { USD: 21.00, EUR: 22.85, GBP: 26.42, AED: 5.72, INR: 0.252, SGD: 15.55, JPY: 0.140, MVR: 1 };
+    state.marketPrices[itemIdx] = prices.map(p => ({
+      ...p,
+      priceMVR: Number(p.price) * (fx[p.currency] || 1)
+    }));
+
+    renderPricingTable();
+    showMarketDetail(itemIdx);
+  } catch (err) {
+    detailArea.innerHTML = `
+      <div class="alert al-err">
+        <div class="ai">✕</div>
+        <div><b>Market search failed:</b> ${err.message}. You can enter prices manually.</div>
+      </div>
+      <button class="btn btn-p" onclick="openManualPriceEntry(${itemIdx})">+ Enter Price Manually</button>
+    `;
+  }
+}
+
+async function fetchAllMarketPrices() {
+  for (let i = 0; i < state.items.length; i++) {
+    await fetchMarketPrices(i);
+  }
+}
+
+function showMarketDetail(itemIdx) {
+  state.currentMarketItem = itemIdx;
+  const item = state.items[itemIdx];
+  const prices = state.marketPrices[itemIdx] || [];
+  document.getElementById('mmd-title').textContent = `Market Prices: ${item.code} — ${item.desc}`;
+  const body = document.getElementById('mmd-body');
+  if (!prices.length) {
+    body.innerHTML = `<div class="alert al-info"><div class="ai">ℹ</div><div>No market prices yet. Click <b>Fetch</b> on the item or add manually.</div></div>`;
+  } else {
+    const avg = prices.reduce((a, b) => a + b.priceMVR, 0) / prices.length;
+    const min = Math.min(...prices.map(p => p.priceMVR));
+    const max = Math.max(...prices.map(p => p.priceMVR));
+    body.innerHTML = `
+      <div class="sgrid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+        <div class="stat s-green"><div class="stat-lbl">Lowest</div><div class="stat-val">${fmt(min)}</div><div class="stat-sub">MVR</div></div>
+        <div class="stat"><div class="stat-lbl">Average</div><div class="stat-val">${fmt(avg)}</div><div class="stat-sub">MVR · ${prices.length} points</div></div>
+        <div class="stat s-amber"><div class="stat-lbl">Highest</div><div class="stat-val">${fmt(max)}</div><div class="stat-sub">MVR</div></div>
+      </div>
+      ${prices.map((p, idx) => `
+        <div class="mpc">
+          <div class="top">
+            <div>
+              <div class="comp">${p.competitor}</div>
+              <div class="brand">Brand: ${p.brand} · Pack: ${p.packSize}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="pr">${fmt(p.priceMVR)} MVR</div>
+              <div class="tiny muted">${p.price} ${p.currency}</div>
+            </div>
+          </div>
+          <div class="src">📌 ${p.source}</div>
+          ${p.note ? `<div class="note">"${p.note}"</div>` : ''}
+        </div>
+      `).join('')}
+    `;
+  }
+  document.getElementById('modal-market-detail').classList.add('show');
+}
+
+function openManualPriceEntry(itemIdx) {
+  if (itemIdx !== undefined) state.currentMarketItem = itemIdx;
+  document.getElementById('modal-manual').classList.add('show');
+}
+
+function saveManualPrice() {
+  const i = state.currentMarketItem;
+  if (i === undefined) { alert('Select an item first'); return; }
+  const fx = { USD: 21.00, EUR: 22.85, MVR: 1 };
+  const entry = {
+    competitor: document.getElementById('mp-comp').value,
+    brand: document.getElementById('mp-brand').value,
+    price: Number(document.getElementById('mp-price').value),
+    currency: document.getElementById('mp-curr').value,
+    packSize: document.getElementById('mp-pack').value,
+    source: document.getElementById('mp-src').value || 'Manual entry',
+    note: document.getElementById('mp-note').value
+  };
+  entry.priceMVR = entry.price * (fx[entry.currency] || 1);
+  if (!state.marketPrices[i]) state.marketPrices[i] = [];
+  state.marketPrices[i].push(entry);
+  closeModal('modal-manual');
+  renderPricingTable();
+  showMarketDetail(i);
+  // clear modal fields
+  ['mp-comp','mp-brand','mp-price','mp-pack','mp-src','mp-note'].forEach(id => document.getElementById(id).value = '');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AD-HOC MARKET SEARCH
+   ═══════════════════════════════════════════════════════════════ */
+async function adHocMarketSearch() {
+  const q = document.getElementById('mkt-q').value.trim();
+  const brand = document.getElementById('mkt-brand').value.trim();
+  const region = document.getElementById('mkt-region').value;
+  const curr = document.getElementById('mkt-curr').value;
+  if (!q) { alert('Enter a product description first'); return; }
+  const area = document.getElementById('adhoc-results');
+  area.innerHTML = `
+    <div class="card"><div class="cb">
+      <div class="ai-load">
+        <div class="spinner"></div>
+        <div>AI is searching <b>${q}</b>${brand ? ` (${brand})` : ''} in ${region}...</div>
+      </div>
+    </div></div>
+  `;
+
+  try {
+    const prompt = `Find market prices for this product. Focus on ${region} pricing in ${curr}.
+
+Product: ${q}
+Brand: ${brand || 'any'}
+
+Return a JSON array of at least 3 price points with these keys:
+- competitor, brand, price (number), currency, packSize, source, note
+
+Return ONLY the JSON array. No prose, no markdown.`;
+    const txt = await callClaude(prompt);
+    const prices = extractJSON(txt);
+    const fx = { USD: 21.00, EUR: 22.85, MVR: 1 };
+    const enriched = prices.map(p => ({ ...p, priceMVR: Number(p.price) * (fx[p.currency] || 1) }));
+    const avg = enriched.reduce((a, b) => a + b.priceMVR, 0) / enriched.length;
+
+    area.innerHTML = `
+      <div class="card">
+        <div class="ch">
+          <div><div class="ct">Results for: ${q}</div><div class="cs">${enriched.length} prices found · Avg ${fmt(avg)} MVR</div></div>
+          <button class="btn btn-sm">📥 Export</button>
+        </div>
+        <div class="cb">
+          ${enriched.map(p => `
+            <div class="mpc">
+              <div class="top">
+                <div>
+                  <div class="comp">${p.competitor}</div>
+                  <div class="brand">Brand: ${p.brand} · Pack: ${p.packSize}</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="pr">${fmt(p.priceMVR)} MVR</div>
+                  <div class="tiny muted">${p.price} ${p.currency}</div>
+                </div>
+              </div>
+              <div class="src">📌 ${p.source}</div>
+              ${p.note ? `<div class="note">"${p.note}"</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    area.innerHTML = `<div class="alert al-err"><div class="ai">✕</div><div>Search failed: ${err.message}</div></div>`;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INITIAL RENDER
+   ═══════════════════════════════════════════════════════════════ */
+renderSheetsList();
+renderItems();
+renderCostTypes();
+recalcDistribution();
+</script>
+
+</body>
+</html>
