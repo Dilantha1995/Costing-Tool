@@ -13,6 +13,7 @@
 
 <!-- Libraries: xlsx for Excel, jsPDF + autotable for PDF, pdfjs to render PDFs to images -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -885,93 +886,345 @@ async function nextRefNumber(companyPrefix, suppName) {
 // ─────────────────────────────────────────────────────────────
 // Exports
 // ─────────────────────────────────────────────────────────────
-function exportExcel(state, calc) {
-  const wb = XLSX.utils.book_new();
+async function exportExcel(state, calc) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = state.preparedBy || 'Costing Ledger';
+  wb.created = new Date();
 
-  // Sheet 1: Costing Sheet (mirrors the screenshot)
-  const cs = [];
-  cs.push([state.companyName + " — Costing Sheet"]);
-  cs.push(["TIN:", state.companyTIN || ""]);
-  cs.push(["Reg No:", state.companyReg || ""]);
-  cs.push([]);
-  cs.push(["Costing Sheet No:", state.refNumber]);
-  cs.push(["Cost Sheet Date:", state.costSheetDate]);
-  cs.push(["Godown Received Date:", state.godownDate || ""]);
-  cs.push(["BL No:", state.blNo || ""]);
-  cs.push(["Shipment Reference:", state.shipmentRef || ""]);
-  cs.push(["Vendor Name:", state.supplierName]);
-  cs.push(["Invoice No:", state.supplierInvoiceNo]);
-  cs.push(["Invoice Currency:", state.supplierCurrency, "Rate:", state.exchangeRate, "MVR", 1]);
-  cs.push([]);
-  cs.push(["Srn", "Description", "Document Ref No.", "Amount", "Currency", "Rate", "Value (MVR)", "Remarks"]);
-  cs.push(["1.0", "DIRECT COST"]);
-  cs.push(["1.1", "INVOICE VALUE", state.supplierInvoiceNo, calc.totalSupplierValue, state.supplierCurrency, state.exchangeRate, calc.invoiceValueMVR, ""]);
-  cs.push(["1.2", "FINANCE COST*", "", calc.financeCostMVR, "MVR", 1, calc.financeCostMVR, ""]);
-  cs.push(["", "", "", "", "", "Total Direct Cost (A)", calc.totalDirect, ""]);
-  cs.push([]);
-  cs.push(["2.0", "LANDING COST"]);
-  state.landingCharges.forEach((lc, i) => {
-    const r = nz(lc.rate) || (lc.currency === "USD" ? nz(state.exchangeRate) : 1);
-    cs.push([`2.${i+1}`, lc.description, "", nz(lc.amount), lc.currency || "MVR", r, nz(lc.amount) * r, lc.remarks || ""]);
+  // Palette — matches the PDF
+  const C = {
+    headerBg:      'FF1A1A1F',  // dark for column headers
+    headerText:    'FFFFFFFF',
+    sectionGreen:  'FFDCEBDC',  // 1.0 / 2.0 section banners
+    totalBlue:     'FFE6F0FA',  // subtotal rows
+    landingYellow: 'FFFFF3CD',  // Total Landing+Other (D)
+    grandOrange:   'FFFFDC96',  // Grand Total
+    softGrey:      'FFF5F2EC',  // info row background
+    accentRed:     'FF6B2737',  // brand accent
+    okGreen:       'FF2D6A4F',  // suggested-selling text
+    rule:          'FFCCCCCC'   // thin borders
+  };
+  const thin = { style: 'thin', color: { argb: C.rule } };
+  const boxBorder = { top: thin, bottom: thin, left: thin, right: thin };
+
+  function styleHeaderRow(row, height = 22) {
+    row.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.headerBg } };
+      cell.font = { color: { argb: C.headerText }, bold: true, size: 10, name: 'Calibri' };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = boxBorder;
+    });
+    row.height = height;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SHEET 1 — Costing Sheet
+  // ═══════════════════════════════════════════════════════════
+  const ws = wb.addWorksheet('Costing Sheet', {
+    pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5 } }
   });
-  cs.push(["", "", "", "", "", "Total Landing Cost (B)", calc.totalLanding, ""]);
-  cs.push([]);
-  cs.push(["", "", "", "", "", "Total Other Cost (C)", calc.totalOther, ""]);
-  cs.push(["", "", "", "", "", "Total Landing and Other Cost (D)", calc.totalLandingAndOther, ""]);
-  cs.push([]);
-  cs.push(["Total Cost to Be Distribute to Items (A+D)", "", "", "", "", "", calc.grandTotal, ""]);
-  cs.push([]);
-  cs.push(["* Costs with star marks are only absorbing/considering for price-setting decisions."]);
-  cs.push(["Prepared By:", state.preparedBy || ""]);
-
-  const ws1 = XLSX.utils.aoa_to_sheet(cs);
-  ws1["!cols"] = [{wch:6},{wch:34},{wch:18},{wch:14},{wch:10},{wch:8},{wch:16},{wch:18}];
-  XLSX.utils.book_append_sheet(wb, ws1, "Costing Sheet");
-
-  // Sheet 2: Cost Distribution
-  const cd = [["Costing Sheet No:", state.refNumber], ["Company:", state.companyName], []];
-  cd.push([
-    "Srn","Item Code","Description","UOM","Qty","Unit Price ("+state.supplierCurrency+")",
-    "Line Value ("+state.supplierCurrency+")","Line Value (MVR)",
-    "Freight/Ins Share (MVR)","Finance Share (MVR)","Direct (MVR)",
-    "Landing Share (MVR)","Total Cost (MVR)","Unit Cost (MVR)"
-  ]);
-  calc.items.forEach((it, i) => {
-    cd.push([
-      i+1, it.item_code, it.description, it.uom || "",
-      nz(it.qty), nz(it.unit_price),
-      it.lineSupplier, it.lineMVRBase,
-      it.addonMVR, it.financeShare, it.directMVR,
-      it.landingShareMVR, it.totalCostMVR, it.unitCostMVR
-    ]);
-  });
-  cd.push([]);
-  cd.push(["", "", "TOTAL", "", calc.items.reduce((s,it)=>s+nz(it.qty),0), "",
-    calc.invoiceValueSupplier + calc.supplierAddons,
-    calc.invoiceValueMVR, "", calc.financeCostMVR, calc.totalDirect,
-    calc.totalLandingAndOther, calc.grandTotal, ""]);
-  const ws2 = XLSX.utils.aoa_to_sheet(cd);
-  ws2["!cols"] = [{wch:5},{wch:14},{wch:42},{wch:8},{wch:8},{wch:12},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:14}];
-  XLSX.utils.book_append_sheet(wb, ws2, "Cost Distribution");
-
-  // Sheet 3: Selling Price Suggestion
-  const sp = [
-    ["Costing Sheet No:", state.refNumber],
-    ["Margin Multiplier:", state.marginMultiplier, "(Selling = Unit Cost × multiplier)"],
-    [],
-    ["Srn","Item Code","Description","UOM","Qty","Unit Cost (MVR)","Suggested Selling / Unit (MVR)","Line Selling (MVR)"]
+  ws.columns = [
+    { width: 6 },   // A Srn
+    { width: 38 },  // B Description
+    { width: 18 },  // C Doc Ref
+    { width: 14 },  // D Amount
+    { width: 8 },   // E Ccy
+    { width: 8 },   // F Rate
+    { width: 16 },  // G Value (MVR)
+    { width: 22 }   // H Remarks
   ];
-  calc.items.forEach((it,i) => {
-    sp.push([i+1, it.item_code, it.description, it.uom||"", nz(it.qty), it.unitCostMVR, it.sellingPriceMVR, it.lineSellingMVR]);
-  });
-  sp.push([]);
-  sp.push(["","","TOTAL","",calc.items.reduce((s,it)=>s+nz(it.qty),0),"","",
-    calc.items.reduce((s,it)=>s+it.lineSellingMVR,0)]);
-  const ws3 = XLSX.utils.aoa_to_sheet(sp);
-  ws3["!cols"] = [{wch:5},{wch:14},{wch:42},{wch:8},{wch:8},{wch:16},{wch:22},{wch:18}];
-  XLSX.utils.book_append_sheet(wb, ws3, "Selling Price");
 
-  XLSX.writeFile(wb, `${state.refNumber.replace(/\//g,"_")}.xlsx`);
+  // Title
+  ws.mergeCells('A1:H1');
+  const tCell = ws.getCell('A1');
+  tCell.value = 'Costing Sheet';
+  tCell.font = { name: 'Calibri', size: 22, bold: true };
+  tCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 34;
+
+  // TIN / Reg subtitle
+  ws.mergeCells('A2:H2');
+  const stCell = ws.getCell('A2');
+  stCell.value = `TIN: ${state.companyTIN || '-'}     Reg No: ${state.companyReg || '-'}`;
+  stCell.font = { name: 'Calibri', size: 10, color: { argb: 'FF666666' } };
+  stCell.alignment = { horizontal: 'center' };
+
+  ws.addRow([]);  // row 3 spacer
+
+  // Two-column header info rows
+  let r = 4;
+  const addInfo = (left, right, opts = {}) => {
+    ws.mergeCells(`A${r}:D${r}`);
+    ws.mergeCells(`E${r}:H${r}`);
+    const L = ws.getCell(`A${r}`), R = ws.getCell(`E${r}`);
+    L.value = left; R.value = right;
+    L.font = { size: 10, bold: !!opts.leftBold, name: 'Calibri' };
+    R.font = { size: 10, bold: !!opts.rightBold, name: 'Calibri' };
+    L.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    R.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+    if (opts.fill) {
+      L.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
+      R.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
+    }
+    ws.getRow(r).height = 18;
+    r++;
+  };
+  addInfo(state.companyName, `Costing Sheet No:  ${state.refNumber || '-'}`, { leftBold: true, rightBold: true, fill: C.softGrey });
+  addInfo(`BL / AWB No:  ${state.blNo || '-'}`, `Godown Received:  ${state.godownDate || '-'}`);
+  addInfo(`Godown:  ${state.godown1 || 'Warehouse 1'}`, `Shipment Reference:  ${state.shipmentRef || '-'}`);
+  addInfo(`Vendor:  ${state.supplierName || '-'}`, `Cost Sheet Date:  ${state.costSheetDate || '-'}`);
+  addInfo(`Invoice No:  ${state.supplierInvoiceNo || '-'}`, `Currency:  ${state.supplierCurrency} @ ${state.exchangeRate}`);
+
+  ws.addRow([]);  // spacer
+  r++;
+
+  // Column headers
+  const hRow = ws.addRow(['Srn', 'Description', 'Doc Ref', 'Amount', 'Ccy', 'Rate', 'Value (MVR)', 'Remarks']);
+  styleHeaderRow(hRow);
+
+  // helpers
+  const sectionRow = (label, bg) => {
+    const row = ws.addRow([label, '', '', '', '', '', '', '']);
+    ws.mergeCells(row.number, 1, row.number, 8);
+    const c = row.getCell(1);
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+    c.font = { bold: true, size: 11, name: 'Calibri' };
+    c.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    c.border = boxBorder;
+    row.height = 22;
+    return row;
+  };
+  const dataRow = (vals, opts = {}) => {
+    const row = ws.addRow(vals);
+    row.eachCell((cell, col) => {
+      cell.border = boxBorder;
+      cell.font = { size: 10, name: 'Calibri' };
+      cell.alignment = { vertical: 'middle' };
+      if (col === 1) cell.alignment.horizontal = 'center';
+      if (col === 5) cell.alignment.horizontal = 'center';
+      if (col === 4 || col === 6 || col === 7) {
+        cell.alignment.horizontal = 'right';
+        cell.numFmt = '#,##0.00';
+      }
+      if (opts.indent) cell.alignment.indent = 1;
+    });
+    return row;
+  };
+  const totalRow = (label, val, bg, big = false) => {
+    const row = ws.addRow([label, '', '', '', '', '', val, '']);
+    ws.mergeCells(row.number, 1, row.number, 6);
+    const lc = row.getCell(1), vc = row.getCell(7), bc = row.getCell(8);
+    [lc, vc, bc].forEach(c => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      c.font = { bold: true, size: big ? 12 : 11, name: 'Calibri' };
+      c.border = boxBorder;
+    });
+    lc.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
+    vc.alignment = { horizontal: 'right', vertical: 'middle' };
+    vc.numFmt = '#,##0.00';
+    row.height = big ? 26 : 22;
+    return row;
+  };
+
+  // 1.0 DIRECT COST
+  sectionRow('1.0   DIRECT COST', C.sectionGreen);
+  dataRow(['1.1', 'INVOICE VALUE', state.supplierInvoiceNo || '', calc.totalSupplierValue, state.supplierCurrency, nz(state.exchangeRate), calc.invoiceValueMVR, '']);
+  dataRow(['1.2', 'FINANCE COST*', '', calc.financeCostMVR, 'MVR', 1, calc.financeCostMVR, '']);
+  totalRow('Total Direct Cost  (A)', calc.totalDirect, C.totalBlue);
+
+  // 2.0 LANDING COST
+  sectionRow('2.0   LANDING COST', C.sectionGreen);
+  state.landingCharges.forEach((lc, i) => {
+    const rate = nz(lc.rate) || (lc.currency === 'USD' ? nz(state.exchangeRate) : 1);
+    dataRow([`2.${i + 1}`, lc.description, '', nz(lc.amount), lc.currency || 'MVR', rate, nz(lc.amount) * rate, lc.remarks || '']);
+  });
+  totalRow('Total Landing Cost  (B)', calc.totalLanding, C.totalBlue);
+
+  totalRow('Total Other Cost  (C)', calc.totalOther, 'FFFFFFFF');
+  totalRow('Total Landing and Other Cost  (D)', calc.totalLandingAndOther, C.landingYellow);
+  totalRow('Total Cost to Be Distributed  (A + D)', calc.grandTotal, C.grandOrange, true);
+
+  ws.addRow([]);
+  ws.addRow([]);
+
+  // Footnote
+  const noteR = ws.addRow(['* Costs with star marks are only absorbing/considering for price-setting decisions and other than those two costs, we are receiving system.']);
+  ws.mergeCells(noteR.number, 1, noteR.number, 8);
+  const nc = noteR.getCell(1);
+  nc.font = { italic: true, size: 9, color: { argb: 'FF888888' }, name: 'Calibri' };
+  nc.alignment = { wrapText: true, vertical: 'middle' };
+  noteR.height = 28;
+
+  ws.addRow([]);
+  ws.addRow([]);
+
+  // Signature row
+  const sigR = ws.addRow(['', '', '', '', '', '', '', '']);
+  ws.mergeCells(sigR.number, 1, sigR.number, 3);
+  ws.mergeCells(sigR.number, 4, sigR.number, 5);
+  ws.mergeCells(sigR.number, 6, sigR.number, 8);
+  sigR.getCell(1).value = `Prepared By:  ${state.preparedBy || ''}`;
+  sigR.getCell(4).value = 'Checked By:';
+  sigR.getCell(6).value = 'Approved By:';
+  [1, 4, 6].forEach(col => {
+    const c = sigR.getCell(col);
+    c.font = { size: 10, bold: true, name: 'Calibri' };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+    c.border = { top: { style: 'thin', color: { argb: 'FF000000' } } };
+  });
+  sigR.height = 36;
+
+  // ═══════════════════════════════════════════════════════════
+  // SHEET 2 — Cost Distribution
+  // ═══════════════════════════════════════════════════════════
+  const ws2 = wb.addWorksheet('Cost Distribution', {
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
+  });
+  ws2.columns = [
+    { width: 5 }, { width: 14 }, { width: 42 }, { width: 8 },
+    { width: 9 }, { width: 12 }, { width: 14 }, { width: 14 },
+    { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }
+  ];
+
+  ws2.mergeCells('A1:L1');
+  ws2.getCell('A1').value = 'Cost Distribution to Items';
+  ws2.getCell('A1').font = { size: 18, bold: true, name: 'Calibri' };
+  ws2.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws2.getRow(1).height = 30;
+
+  ws2.mergeCells('A2:L2');
+  ws2.getCell('A2').value = `Costing Sheet:  ${state.refNumber}        Method:  ${state.distributionMethod === 'qty' ? 'By Quantity' : 'By Value'}`;
+  ws2.getCell('A2').font = { size: 10, color: { argb: 'FF666666' }, name: 'Calibri' };
+  ws2.getCell('A2').alignment = { horizontal: 'center' };
+
+  ws2.addRow([]);
+
+  const dh = ws2.addRow(['#', 'Code', 'Description', 'UOM', 'Qty', `Unit Px (${state.supplierCurrency})`, 'Line (MVR)', 'Frt+Fin (MVR)', 'Direct (MVR)', 'Landing (MVR)', 'Total (MVR)', 'Unit Cost (MVR)']);
+  styleHeaderRow(dh, 32);
+
+  calc.items.forEach((it, i) => {
+    const row = ws2.addRow([
+      i + 1, it.item_code, it.description, it.uom || '',
+      nz(it.qty), nz(it.unit_price),
+      it.lineMVRBase, it.addonMVR + it.financeShare,
+      it.directMVR, it.landingShareMVR,
+      it.totalCostMVR, it.unitCostMVR
+    ]);
+    row.eachCell((cell, col) => {
+      cell.border = boxBorder;
+      cell.font = { size: 9, name: 'Calibri' };
+      cell.alignment = { vertical: 'middle', wrapText: col === 3 };
+      if (col === 1 || col === 4) cell.alignment.horizontal = 'center';
+      if (col >= 5) {
+        cell.alignment.horizontal = 'right';
+        cell.numFmt = '#,##0.00';
+      }
+      if (col === 11 || col === 12) cell.font = { ...cell.font, bold: true };
+      if (col === 12) cell.font = { ...cell.font, color: { argb: C.accentRed } };
+    });
+    if (i % 2 === 1) {
+      row.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBF8F1' } };
+      });
+    }
+  });
+
+  const tot = ws2.addRow([
+    '', '', 'TOTAL', '',
+    calc.items.reduce((s, it) => s + nz(it.qty), 0), '',
+    calc.invoiceValueMVR, '',
+    calc.totalDirect, calc.totalLandingAndOther,
+    calc.grandTotal, ''
+  ]);
+  tot.eachCell((cell, col) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.totalBlue } };
+    cell.font = { bold: true, size: 10, name: 'Calibri' };
+    cell.border = boxBorder;
+    cell.alignment = { vertical: 'middle' };
+    if (col === 3) cell.alignment.horizontal = 'right';
+    if (col === 5) cell.alignment.horizontal = 'center';
+    if (col >= 6) {
+      cell.alignment.horizontal = 'right';
+      cell.numFmt = '#,##0.00';
+    }
+  });
+  tot.height = 24;
+
+  // ═══════════════════════════════════════════════════════════
+  // SHEET 3 — Suggested Selling Price
+  // ═══════════════════════════════════════════════════════════
+  const ws3 = wb.addWorksheet('Selling Price', {
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
+  });
+  ws3.columns = [
+    { width: 5 }, { width: 14 }, { width: 44 }, { width: 8 },
+    { width: 9 }, { width: 16 }, { width: 22 }, { width: 18 }
+  ];
+
+  ws3.mergeCells('A1:H1');
+  ws3.getCell('A1').value = 'Suggested Selling Price';
+  ws3.getCell('A1').font = { size: 18, bold: true, name: 'Calibri' };
+  ws3.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws3.getRow(1).height = 30;
+
+  ws3.mergeCells('A2:H2');
+  ws3.getCell('A2').value = `Costing Sheet:  ${state.refNumber}        Multiplier:  ${state.marginMultiplier}×   (Selling = Unit Cost × ${state.marginMultiplier})`;
+  ws3.getCell('A2').font = { size: 10, color: { argb: 'FF666666' }, name: 'Calibri' };
+  ws3.getCell('A2').alignment = { horizontal: 'center' };
+
+  ws3.addRow([]);
+
+  const sh = ws3.addRow(['#', 'Code', 'Description', 'UOM', 'Qty', 'Unit Cost (MVR)', 'Suggested / Unit (MVR)', 'Line Selling (MVR)']);
+  styleHeaderRow(sh, 30);
+
+  calc.items.forEach((it, i) => {
+    const row = ws3.addRow([i + 1, it.item_code, it.description, it.uom || '', nz(it.qty), it.unitCostMVR, it.sellingPriceMVR, it.lineSellingMVR]);
+    row.eachCell((cell, col) => {
+      cell.border = boxBorder;
+      cell.font = { size: 9, name: 'Calibri' };
+      cell.alignment = { vertical: 'middle', wrapText: col === 3 };
+      if (col === 1 || col === 4) cell.alignment.horizontal = 'center';
+      if (col >= 5) {
+        cell.alignment.horizontal = 'right';
+        cell.numFmt = '#,##0.00';
+      }
+      if (col === 6) cell.font = { ...cell.font, bold: true };
+      if (col === 7) cell.font = { ...cell.font, bold: true, color: { argb: C.okGreen } };
+      if (col === 8) cell.font = { ...cell.font, bold: true };
+    });
+    if (i % 2 === 1) {
+      row.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBF8F1' } };
+      });
+    }
+  });
+
+  const stot = ws3.addRow(['', '', 'TOTAL', '', calc.items.reduce((s, it) => s + nz(it.qty), 0), '', '', calc.items.reduce((s, it) => s + it.lineSellingMVR, 0)]);
+  stot.eachCell((cell, col) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.totalBlue } };
+    cell.font = { bold: true, size: 10, name: 'Calibri' };
+    cell.border = boxBorder;
+    cell.alignment = { vertical: 'middle' };
+    if (col === 3) cell.alignment.horizontal = 'right';
+    if (col === 5) cell.alignment.horizontal = 'center';
+    if (col >= 6) {
+      cell.alignment.horizontal = 'right';
+      cell.numFmt = '#,##0.00';
+    }
+  });
+  stot.height = 24;
+
+  // ── Save ──
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(state.refNumber || 'costing').replace(/\//g, '_')}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function exportPDF(state, calc) {
@@ -1140,15 +1393,15 @@ function exportMasterExcel(master) {
 // ─────────────────────────────────────────────────────────────
 const COMPANY_PRESETS = {
   PSMS: {
-    name: "ProSynergy Medical System Pvt Ltd",
-    tin: "1002426GST501",
-    reg: "C-191/2007",
+    name: "Pro Synergy Medical System Pvt Ltd",
+    tin: "1012845GST501",
+    reg: "C-0516/2012",
     prefix: "PSMS"
   },
   PPM: {
-    name: "Pro Pharma Maldives Private Limited",
-    tin: "",
-    reg: "",
+    name: "Propharma Maldives Pvt Ltd",
+    tin: "1025002GST501",
+    reg: "C-0644/2013",
     prefix: "PPM"
   },
   QCSM: {
@@ -1158,6 +1411,18 @@ const COMPANY_PRESETS = {
     prefix: "QCSM"
   }
 };
+
+// Resolve the active company info, applying any user overrides from Settings.
+function getCompanyInfo(code, settings) {
+  const base = COMPANY_PRESETS[code] || {};
+  const ov = (settings && settings.companyDetails && settings.companyDetails[code]) || {};
+  return {
+    name: ov.name || base.name || "",
+    tin: ov.tin || base.tin || "",
+    reg: ov.reg || base.reg || "",
+    prefix: base.prefix || code
+  };
+}
 
 // ─────────────────────────────────────────────────────────────
 // Default state
@@ -1230,13 +1495,19 @@ function App() {
     (async () => {
       const h = await storeGet(HISTORY_KEY, []);
       const m = await storeGet(MASTER_KEY, []);
-      const s = await storeGet(SETTINGS_KEY, { defaultRate: 21, defaultMargin: 1.85, defaultCompany: "PSMS" });
+      const s = await storeGet(SETTINGS_KEY, { defaultRate: 21, defaultMargin: 1.85, defaultCompany: "PSMS", companyDetails: {} });
+      if (!s.companyDetails) s.companyDetails = {};
       setHistory(h); setMaster(m); setSettings(s);
-      setState(prev => ({ ...prev, exchangeRate: s.defaultRate, marginMultiplier: s.defaultMargin, company: s.defaultCompany, ...COMPANY_PRESETS[s.defaultCompany] && {
-        companyName: COMPANY_PRESETS[s.defaultCompany].name,
-        companyTIN: COMPANY_PRESETS[s.defaultCompany].tin,
-        companyReg: COMPANY_PRESETS[s.defaultCompany].reg
-      } }));
+      const info = getCompanyInfo(s.defaultCompany, s);
+      setState(prev => ({
+        ...prev,
+        exchangeRate: s.defaultRate,
+        marginMultiplier: s.defaultMargin,
+        company: s.defaultCompany,
+        companyName: info.name,
+        companyTIN: info.tin,
+        companyReg: info.reg
+      }));
     })();
   }, []);
 
@@ -1265,8 +1536,8 @@ function App() {
   const removeLanding = (i) => setState(p => ({ ...p, landingCharges: p.landingCharges.filter((_,idx)=>idx!==i)}));
 
   const changeCompany = (code) => {
-    const preset = COMPANY_PRESETS[code];
-    setState(p => ({ ...p, company: code, companyName: preset.name, companyTIN: preset.tin, companyReg: preset.reg }));
+    const info = getCompanyInfo(code, settings);
+    setState(p => ({ ...p, company: code, companyName: info.name, companyTIN: info.tin, companyReg: info.reg }));
     setSaved(false);
   };
 
@@ -1317,9 +1588,9 @@ function App() {
           shipmentRef: data.shipment_ref || p.shipmentRef,
           costSheetDate: data.invoice_date && /^\d{4}-\d{2}-\d{2}$/.test(data.invoice_date) ? data.invoice_date : p.costSheetDate,
           company: detected,
-          companyName: COMPANY_PRESETS[detected]?.name || p.companyName,
-          companyTIN: COMPANY_PRESETS[detected]?.tin || p.companyTIN,
-          companyReg: COMPANY_PRESETS[detected]?.reg || p.companyReg
+          companyName: getCompanyInfo(detected, settings).name || p.companyName,
+          companyTIN: getCompanyInfo(detected, settings).tin || p.companyTIN,
+          companyReg: getCompanyInfo(detected, settings).reg || p.companyReg
         };
       });
     } else {
@@ -1457,8 +1728,10 @@ function App() {
     fresh.exchangeRate = settings.defaultRate;
     fresh.marginMultiplier = settings.defaultMargin;
     fresh.company = settings.defaultCompany;
-    const preset = COMPANY_PRESETS[settings.defaultCompany];
-    if (preset) { fresh.companyName = preset.name; fresh.companyTIN = preset.tin; fresh.companyReg = preset.reg; }
+    const info = getCompanyInfo(settings.defaultCompany, settings);
+    fresh.companyName = info.name;
+    fresh.companyTIN = info.tin;
+    fresh.companyReg = info.reg;
     setState(fresh);
     setExtractedFiles([]);
     setSaved(false);
@@ -1624,8 +1897,8 @@ function BuildTab({ state, setState, updateField, updateItem, updateLanding,
             <div>
               <div className="label mb-1">Company</div>
               <select className="input w-full" value={state.company} onChange={e=>changeCompany(e.target.value)}>
-                <option value="PSMS">PSMS — ProSynergy</option>
-                <option value="PPM">PPM — Pro Pharma</option>
+                <option value="PSMS">PSMS — Pro Synergy</option>
+                <option value="PPM">PPM — Propharma</option>
                 <option value="QCSM">QCSM — Quality Control Sys</option>
               </select>
             </div>
@@ -1899,7 +2172,7 @@ function PreviewTab({ state, calc, onSave, saved, busy }) {
               {saved ? "✓ Saved" : "Save Costing"}
             </button>
             <button onClick={()=>exportPDF(state, calc)} className="btn-ghost px-4 py-2 text-xs uppercase tracking-wider font-semibold rounded">⤓ PDF</button>
-            <button onClick={()=>exportExcel(state, calc)} className="btn-ghost px-4 py-2 text-xs uppercase tracking-wider font-semibold rounded">⤓ Excel</button>
+            <button onClick={async ()=>{ try { await exportExcel(state, calc); } catch(e) { console.error(e); alert("Excel export failed: " + e.message); } }} className="btn-ghost px-4 py-2 text-xs uppercase tracking-wider font-semibold rounded">⤓ Excel</button>
           </div>
         </div>
       </section>
@@ -2236,37 +2509,111 @@ function MasterTab({ master }) {
 // ─────────────────────────────────────────────────────────────
 function SettingsTab({ settings, onSave }) {
   const [local, setLocal] = useState(settings);
-  useEffect(()=>setLocal(settings), [settings]);
+  useEffect(()=>setLocal(settings || { defaultRate: 21, defaultMargin: 1.85, defaultCompany: "PSMS", companyDetails: {} }), [settings]);
+
+  const cd = local.companyDetails || {};
+  const updCo = (code, field, value) => {
+    setLocal({
+      ...local,
+      companyDetails: {
+        ...(local.companyDetails || {}),
+        [code]: { ...((local.companyDetails || {})[code] || {}), [field]: value }
+      }
+    });
+  };
+  const resetCo = (code) => {
+    const next = { ...(local.companyDetails || {}) };
+    delete next[code];
+    setLocal({ ...local, companyDetails: next });
+  };
+
+  // Effective values: override > preset
+  const eff = (code) => ({
+    name: (cd[code] && cd[code].name) || COMPANY_PRESETS[code].name,
+    tin:  (cd[code] && cd[code].tin)  || COMPANY_PRESETS[code].tin,
+    reg:  (cd[code] && cd[code].reg)  || COMPANY_PRESETS[code].reg
+  });
+
   return (
-    <div className="card rounded p-5 max-w-xl">
+    <div className="card rounded p-5 max-w-2xl">
       <h2 className="font-display text-2xl font-semibold mb-4">Defaults</h2>
       <div className="space-y-4">
-        <div>
-          <div className="label mb-1">Default Exchange Rate (→ MVR)</div>
-          <input type="number" step="0.0001" className="input w-full" value={local.defaultRate} onChange={e=>setLocal({...local, defaultRate: Number(e.target.value)})}/>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <div className="label mb-1">Default Exchange Rate (→ MVR)</div>
+            <input type="number" step="0.0001" className="input w-full" value={local.defaultRate} onChange={e=>setLocal({...local, defaultRate: Number(e.target.value)})}/>
+          </div>
+          <div>
+            <div className="label mb-1">Default Margin Multiplier</div>
+            <input type="number" step="0.01" className="input w-full" value={local.defaultMargin} onChange={e=>setLocal({...local, defaultMargin: Number(e.target.value)})}/>
+          </div>
+          <div>
+            <div className="label mb-1">Default Company</div>
+            <select className="input w-full" value={local.defaultCompany} onChange={e=>setLocal({...local, defaultCompany: e.target.value})}>
+              <option value="PSMS">PSMS — Pro Synergy</option>
+              <option value="PPM">PPM — Propharma</option>
+              <option value="QCSM">QCSM — Quality Control Sys</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <div className="label mb-1">Default Margin Multiplier</div>
-          <input type="number" step="0.01" className="input w-full" value={local.defaultMargin} onChange={e=>setLocal({...local, defaultMargin: Number(e.target.value)})}/>
-          <div className="text-[11px] font-mono text-stone-500 mt-1">Selling = Unit Cost × multiplier. Default 1.85.</div>
-        </div>
-        <div>
-          <div className="label mb-1">Default Company</div>
-          <select className="input w-full" value={local.defaultCompany} onChange={e=>setLocal({...local, defaultCompany: e.target.value})}>
-            <option value="PSMS">PSMS — ProSynergy</option>
-            <option value="PPM">PPM — Pro Pharma</option>
-            <option value="QCSM">QCSM — Quality Control Sys</option>
-          </select>
-        </div>
-        <button className="btn-primary px-4 py-2 text-xs uppercase tracking-wider font-semibold rounded" onClick={()=>onSave(local)}>Save defaults</button>
+        <div className="text-[11px] font-mono text-stone-500">Selling = Unit Cost × multiplier. Default 1.85.</div>
       </div>
 
       <div className="rule mt-8 mb-4">⁂</div>
 
+      <h3 className="font-display text-lg font-semibold mb-3">Company details — printed on the costing sheet</h3>
+      <p className="text-xs font-mono text-stone-600 mb-4">Edit the legal name, TIN, and Registration number per company. These appear under the "Costing Sheet" heading on every printed sheet.</p>
+
+      <div className="space-y-5">
+        {["PSMS", "PPM", "QCSM"].map(code => {
+          const e = eff(code);
+          const overridden = !!(cd[code] && (cd[code].name || cd[code].tin || cd[code].reg));
+          return (
+            <details key={code} open className="border border-stone-200 rounded">
+              <summary className="cursor-pointer px-3 py-2 flex items-center justify-between hover:bg-stone-50">
+                <span>
+                  <span className={`chip ${code === "PPM" ? "ppm" : code === "PSMS" ? "psms" : "gold"}`}>{code}</span>
+                  <span className="ml-2 text-sm font-semibold">{e.name}</span>
+                </span>
+                {overridden && <span className="text-[10px] uppercase tracking-wider text-stone-500 font-mono">edited</span>}
+              </summary>
+              <div className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-3">
+                  <div className="label mb-1">Legal Name</div>
+                  <input className="input w-full" value={e.name} onChange={ev=>updCo(code, "name", ev.target.value)} />
+                </div>
+                <div>
+                  <div className="label mb-1">TIN / GST No.</div>
+                  <input className="input w-full" value={e.tin} onChange={ev=>updCo(code, "tin", ev.target.value)} />
+                </div>
+                <div>
+                  <div className="label mb-1">Reg No.</div>
+                  <input className="input w-full" value={e.reg} onChange={ev=>updCo(code, "reg", ev.target.value)} />
+                </div>
+                <div className="flex items-end">
+                  {overridden ? (
+                    <button onClick={()=>resetCo(code)} className="btn-ghost px-3 py-2 text-[10px] uppercase tracking-wider font-semibold rounded">↺ Reset to default</button>
+                  ) : (
+                    <span className="text-[10px] font-mono text-stone-400">using built-in default</span>
+                  )}
+                </div>
+              </div>
+            </details>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <button className="btn-primary px-5 py-2 text-xs uppercase tracking-wider font-semibold rounded" onClick={()=>onSave(local)}>Save all settings</button>
+        <span className="text-[11px] font-mono text-stone-500">Changes apply to new costings & exports.</span>
+      </div>
+
+      <div className="rule mt-10 mb-4">⁂</div>
+
       <h3 className="font-display text-lg font-semibold mb-2">Reference numbering</h3>
       <p className="text-xs font-mono text-stone-600 leading-relaxed">
-        Costing refs follow the pattern <span className="font-semibold">[PREFIX]/COS/[YEAR]/[NNN]</span> — e.g. <span className="font-semibold">PSMS/COS/2026/046</span>.
-        Numbers increment per company per year. Deleting a history entry does not roll back the counter, so refs stay unique and verifiable.
+        Costing refs follow the pattern <span className="font-semibold">[PREFIX]/ACC/COS/[YEAR]/[SUPPLIER]/[NNN]</span> — e.g. <span className="font-semibold">PSMS/ACC/COS/2026/OR/001</span>.
+        Numbers increment per company + supplier + year. Deleting a history entry does not roll back the counter, so refs stay unique and verifiable.
         If a ref ever needs to be re-issued manually, you can type it directly in the New Costing tab.
       </p>
     </div>
