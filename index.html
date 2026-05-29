@@ -243,16 +243,6 @@ async function pdfFirstPageToImage(file) {
   return canvas.toDataURL("image/png").split(",")[1];
 }
 
-// Calls Claude from inside the artifact runtime.
-// window.claude.complete takes a single text prompt and returns text.
-async function callClaudeText(prompt) {
-  if (!window.claude || typeof window.claude.complete !== "function") {
-    throw new Error("AI runtime unavailable. Open this tool inside Claude.ai.");
-  }
-  const reply = await window.claude.complete(prompt);
-  return reply;
-}
-
 // Extract all text from a PDF using pdf.js (runs locally, no network).
 async function pdfToText(file) {
   const buf = await file.arrayBuffer();
@@ -261,7 +251,6 @@ async function pdfToText(file) {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    // Reconstruct rough layout: group by vertical position
     const items = content.items;
     let lastY = null, line = "";
     const lines = [];
@@ -281,121 +270,482 @@ async function pdfToText(file) {
   return out.trim();
 }
 
-function extractJson(text) {
-  if (text == null) throw new Error("Empty AI response");
-  // strip code fences
-  let t = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
-  // pick the outermost JSON object
-  const start = t.indexOf("{");
-  const end = t.lastIndexOf("}");
-  if (start >= 0 && end > start) t = t.slice(start, end + 1);
-  // remove trailing commas before } or ]
-  t = t.replace(/,\s*([}\]])/g, "$1");
-  try {
-    return JSON.parse(t);
-  } catch (e) {
-    throw new Error("Could not parse AI response as JSON. Try re-uploading.");
-  }
-}
+// ─────────────────────────────────────────────────────────────
+// LOCAL PARSER — no AI, runs entirely in the browser
+// Strategy: extract text from PDF, then use the universal
+// invariant qty × unit_price ≈ amount to identify item rows.
+// ─────────────────────────────────────────────────────────────
 
-const SUPPLIER_PROMPT = `You are extracting line items from a supplier commercial invoice for an imports costing tool.
+const MONTH_MAP = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
 
-Return ONLY valid JSON in this exact shape (no prose, no code fences):
-{
-  "supplier_name": "string",
-  "supplier_address": "string or null",
-  "invoice_no": "string or null",
-  "invoice_date": "string or null (YYYY-MM-DD)",
-  "currency": "USD | MVR | EUR | JPY | INR | etc",
-  "incoterm": "string or null",
-  "consignee_name": "string or null",
-  "bl_awb_no": "string or null",
-  "shipment_ref": "string or null",
-  "freight": number or null,
-  "insurance": number or null,
-  "other_charges": number or null,
-  "invoice_total": number or null,
-  "items": [
-    {
-      "item_code": "string",
-      "description": "string",
-      "uom": "string or null (BX, EA, BOX, LITRE, PCS, etc)",
-      "qty": number,
-      "unit_price": number,
-      "amount": number
+function parseDate(str) {
+  if (!str) return null;
+  str = String(str).trim();
+  let m = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = str.match(/(\d{1,2})[\-\s]([A-Za-z]{3})[\-\s,]*(\d{2,4})/);
+  if (m) {
+    const mm = MONTH_MAP[m[2].toLowerCase()];
+    if (mm) {
+      const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+      return `${yr}-${mm}-${m[1].padStart(2,'0')}`;
     }
-  ]
+  }
+  m = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (m) {
+    const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  m = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // "April 01, 2026"
+  m = str.match(/([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m) {
+    const mm = MONTH_MAP[m[1].toLowerCase().substring(0,3)];
+    if (mm) return `${m[3]}-${mm}-${m[2].padStart(2,'0')}`;
+  }
+  return null;
 }
 
-Rules:
-- Skip rows that are not actual products (e.g. a line that just says "precision kit" with NIL price).
-- Numbers: no commas, no currency symbol.
-- If freight, insurance, or other charges appear as separate lines, put them in those fields and DO NOT include them as items.
-- "uom" examples: pack size hints like BX, BOX, EACH, LITRE, PCS, KG.
-- Consignee = the receiving company in Maldives (e.g. PROSYNERGY MEDICAL SYSTEMS, PRO PHARMA MALDIVES, QUALITY CONTROL SYSTEMS).
-- bl_awb_no: master AWB / Bill of Lading number (e.g. "MAWB NO. 607-54006212" → "607-54006212"). null if not present.
-- shipment_ref: any delivery / proforma / reference / order number (e.g. "Delivery no. 9521726", "PROFORMA INVOICE NO OCD/FRA/PROSYNERGY/115 & 116/2026", "Your order no.: PP/PO/26/00-1"). null if not present.
-- invoice_date: format YYYY-MM-DD if you can determine it.`;
-
-const EXPENSE_PROMPT = `You are extracting clearance / local expense charges from a Maldivian clearance agent invoice.
-
-Return ONLY valid JSON (no prose, no fences):
-{
-  "vendor_name": "string",
-  "invoice_no": "string or null",
-  "invoice_date": "string or null (YYYY-MM-DD)",
-  "currency": "MVR | USD",
-  "custom_form_no": "string or null",
-  "delivery_order": "string or null",
-  "lines": [
-    { "description": "string", "amount": number }
-  ],
-  "total": number or null
+function extractUom(desc) {
+  if (!desc) return '';
+  const m = desc.match(/\b(BX|BOX|EA|EACH|PCS|PC|KG|LITRE|LITER|L|ML|MG|GM|PK|PACK|SET|TUBE|VIAL|UNIT|BTL|BOTTLE|CASE|CARTON)\b/i);
+  return m ? m[1].toUpperCase() : '';
 }
 
-Rules:
-- Numbers raw (no commas), include every charge line.
-- custom_form_no: customs form number if shown (e.g. "R54952"). null otherwise.
-- delivery_order: delivery order / DO reference (e.g. "FR106815667"). null otherwise.
-- invoice_date: format YYYY-MM-DD when possible.`;
+// Strip date / lot-number patterns BUT preserve line length so positions stay valid
+function stripNoise(line) {
+  return line
+    .replace(/\b\d{1,2}[\-\/.](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\-\/.]\d{2,4}\b/gi, s => ' '.repeat(s.length))
+    .replace(/\b\d{4}[\-\/]\d{1,2}[\-\/]\d{1,2}\b/g, s => ' '.repeat(s.length))
+    .replace(/\b\d{1,2}\.\d{1,2}\.\d{2,4}\b/g, s => ' '.repeat(s.length))
+    // Lot codes like "260224H13/" — letters+digits mix preceded/followed by digit-chars
+    .replace(/\b\d{4,}[A-Z]+\d*\/?/g, s => ' '.repeat(s.length));
+}
 
+function tokenize(line) {
+  const tokens = [];
+  const re = /\S+/g;
+  let m;
+  while ((m = re.exec(line)) !== null) tokens.push({ text: m[0], index: m.index });
+  return tokens;
+}
+
+// Extract numeric value from a token — handles "$165.00", "80BX", "20Litre", "1,214.60"
+function tokenAsNumber(tok) {
+  if (!tok) return null;
+  let s = String(tok).replace(/^\$+/, '').replace(/[,\s]+$/, '');
+  // Bare number with optional trailing UOM letters (e.g. "80BX")
+  const m = s.match(/^([\d,]+(?:\.\d+)?)([A-Za-z]{1,8})?\.?$/);
+  if (!m) return null;
+  const intPart = m[1].replace(/,/g, '').split('.')[0];
+  // Reject too-long integers (item codes, HS codes, phone, etc)
+  if (intPart.length > 7) return null;
+  const v = parseFloat(m[1].replace(/,/g, ''));
+  if (isNaN(v)) return null;
+  return v;
+}
+
+// Find qty × unit_price ≈ amount triple. Returns {qty,unit_price,amount,beforeIndex} or null.
+function findAmountTriple(line) {
+  const clean = stripNoise(line);
+  const tokens = tokenize(clean);
+  const numbers = [];
+  for (const t of tokens) {
+    const v = tokenAsNumber(t.text);
+    if (v !== null) numbers.push({ value: v, raw: t.text, index: t.index });
+  }
+  if (numbers.length < 3) return null;
+
+  for (let i = numbers.length - 1; i >= 2; i--) {
+    const amount = numbers[i].value;
+    if (amount < 0.01) continue;
+    for (let j = i - 1; j >= 1; j--) {
+      const unit_price = numbers[j].value;
+      if (unit_price === 0 || unit_price > 1_000_000) continue;
+      for (let k = j - 1; k >= 0; k--) {
+        const qty = numbers[k].value;
+        if (qty === 0 || qty > 100_000) continue;
+        const expected = qty * unit_price;
+        const err = Math.abs(expected - amount) / Math.max(amount, 0.01);
+        if (err < 0.02) {
+          return { qty, unit_price, amount, beforeIndex: numbers[k].index };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function cleanDescription(s) {
+  if (!s) return '';
+  return s
+    .replace(/\s*=?\-?\s*\b(?:JP|GB|US|IN|CN|DE|FR|IT|NL|CH)\b\s*/g, ' ')
+    .replace(/\$+/g, '')
+    .replace(/\bNA\b/g, '')
+    .replace(/\bEACH\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\d{1,2}[\-\/.][A-Za-z]{3}[\-\/.]\d{2,4}\s*$/, '')
+    .replace(/\s*\d{1,2}[\-\/.]\d{1,2}[\-\/.]\d{2,4}\s*$/, '')
+    .trim();
+}
+
+const HEADER_SKIP = /^(?:total|sub\s*total|grand|freight|insurance|fca\s+value|amount\s+chargeable|declaration|exporter|consignee|shipper|ship\s*to|sold\s*to|bill\s*to|payer|country\s+of|port\s+of|terms\s+of|payment|shipment|on\/about|place\s+of|final\s+destination|goods\s+description|ref\.|note\b|page\b|sr\.?\s*no|sr\.?\s*number|item\s*code|description\s*$|lot\b|expiry\b|coo\b|quantity\s+unit|qty\s+unit|hs\s+code|pack\s+size|fcs\s+no|specification|name\s+of\s+goods|invoice|customer\s+no|seller|buyer|delivery\s+no|your\s+order|proforma|bank|tax\s+invoice|code\s+qty|gst\s+no|sales\s+dl|cin\s+u|payment\s+terms|signature|director|manager|wired|swift|ifsc|beneficiary)/i;
+
+function parseItems(text) {
+  const rawLines = text.split('\n').map(l => l.trim());
+  const items = [];
+  let pending = null;  // {code, descParts}
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    if (!line) { pending = null; continue; }
+    if (HEADER_SKIP.test(line)) { pending = null; continue; }
+
+    const triple = findAmountTriple(line);
+    if (triple) {
+      const beforeText = line.substring(0, triple.beforeIndex).trim();
+      if (/\b(total|grand|sum|subtotal)\b/i.test(beforeText)) { pending = null; continue; }
+
+      const beforeTokens = tokenize(beforeText).map(t => t.text);
+      let item_code = '';
+      let descTokens = [];
+      let startIdx = 0;
+
+      // Skip a leading small sequence number (1-200)
+      if (beforeTokens.length > 1 && /^\d{1,3}$/.test(beforeTokens[0]) && parseInt(beforeTokens[0]) < 200) {
+        startIdx = 1;
+      }
+
+      if (beforeTokens.length > startIdx) {
+        item_code = beforeTokens[startIdx];
+        descTokens = beforeTokens.slice(startIdx + 1);
+      }
+
+      // Multi-line: if no proper code on this line, use the pending one
+      const codeLooksValid = item_code && /\d{3,}/.test(item_code);
+      if (pending && !codeLooksValid) {
+        descTokens = beforeTokens.slice(startIdx);
+        item_code = pending.code;
+      }
+
+      const descPieces = [];
+      if (pending) descPieces.push(...pending.descParts);
+      descPieces.push(descTokens.join(' '));
+      const desc = cleanDescription(descPieces.filter(s => s).join(' '));
+
+      if (item_code) {
+        items.push({
+          item_code: String(item_code),
+          description: desc || item_code,
+          uom: extractUom(desc),
+          qty: triple.qty,
+          unit_price: triple.unit_price,
+          amount: triple.amount
+        });
+      }
+      pending = null;
+    } else {
+      const tokens = tokenize(line).map(t => t.text);
+      // "seq code descr..." e.g. AHM "04 6204990 PKGD LINKAGE, MNT"
+      if (tokens.length >= 2 && /^\d{1,3}$/.test(tokens[0]) && parseInt(tokens[0]) < 200 && /^\d{4,}$/.test(tokens[1])) {
+        pending = { code: tokens[1], descParts: tokens.slice(2).length ? [tokens.slice(2).join(' ')] : [] };
+      }
+      // "seq code" alone e.g. Fujifilm "000010 15809463"
+      else if (tokens.length === 2 && /^\d{1,6}$/.test(tokens[0]) && /^\d{6,}$/.test(tokens[1])) {
+        pending = { code: tokens[1], descParts: [] };
+      }
+      // Continuation of pending description
+      else if (pending && !/^[\d,$.\-]+$/.test(line)) {
+        pending.descParts.push(line);
+      }
+    }
+  }
+  return items;
+}
+
+function extractInvoiceNo(text) {
+  let m;
+  // Ortho: EXP/OCD/120/2026
+  if ((m = text.match(/(EXP\/[A-Z]+\/\d+\/\d{4})/))) return m[1];
+  // AHM: AHM-2026-27/ 03 (with space)
+  if ((m = text.match(/NO\s*:\s*(AHM[-\/][\d\-\/]+(?:\s+\d+)?)/i))) return m[1].replace(/\s+/g, ' ').trim();
+  if ((m = text.match(/(AHM-\d{4}-\d+\/\s*\d+)/i))) return m[1].replace(/\s+/g, ' ').trim();
+  // Fujifilm: ": 96642970 Invoice no." (reversed) OR "Invoice no.: 96642970"
+  if ((m = text.match(/:\s*(\d{7,})\s+Invoice\s*no/i))) return m[1];
+  if ((m = text.match(/Invoice\s*no\.?\s*:?\s*(\d{6,})/i))) return m[1];
+  // O'Nala: INV0062
+  if ((m = text.match(/(INV\d{3,})/))) return m[1];
+  // Generic: requires at least one digit (so "CONSIGNEE" won't match)
+  if ((m = text.match(/Invoice\s*(?:no\.?|number)\s*[.:#]\s*([A-Z0-9\/\-_]{3,40})/i))) {
+    if (/\d/.test(m[1])) return m[1];
+  }
+  return null;
+}
+
+function parseColumnarFallback(text) {
+  const lines = text.split('\n').map(l => l.trim());
+
+  // Code entries: lines like "000010 15809463" followed (after blanks) by a description line
+  const codeEntries = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(\d{1,6})\s+(\d{6,12})\s*$/);
+    if (m) {
+      let j = i + 1;
+      while (j < lines.length && !lines[j]) j++;
+      const description = (j < lines.length && !/^\d/.test(lines[j]) && !HEADER_SKIP.test(lines[j])) ? lines[j] : '';
+      codeEntries.push({ code: m[2], description });
+    }
+  }
+  if (codeEntries.length < 2) return [];
+
+  // Qty+price detection: scan the WHOLE text for the pattern <number><UOM letters> <decimal-number>
+  // This catches lines like "JP 80BX 14.790" and also handles mangled "43. 720" with the space-tolerant decimal.
+  const qtyPrices = [];
+  const qpRegex = /(\d+(?:\.\d+)?)\s*([A-Z]{2,6})\s+(\d+\.\s*\d+)/g;
+  let qpMatch;
+  while ((qpMatch = qpRegex.exec(text)) !== null) {
+    const qty = parseFloat(qpMatch[1]);
+    // tighten the UOM filter — it must be a known UOM-ish suffix
+    if (!/^(BX|BOX|EA|PCS|PC|KG|L|ML|MG|GM|PK|PACK|SET|BTL|CASE|CARTON|LITRE|LITER)$/i.test(qpMatch[2])) continue;
+    const priceStr = qpMatch[3].replace(/\s+/g, '');
+    const unit_price = parseFloat(priceStr);
+    if (!isNaN(qty) && !isNaN(unit_price) && qty > 0 && unit_price > 0) {
+      qtyPrices.push({ qty, unit_price });
+    }
+  }
+
+  // Amount-only lines (in document order)
+  const allAmounts = [];
+  for (const l of lines) {
+    if (/^[\d,]+\.\d{2}\s*$/.test(l)) allAmounts.push(parseFloat(l.replace(/,/g, '')));
+  }
+  // Take only the first N amounts (trailing totals/freight/insurance/CIF are extras)
+  const amounts = allAmounts.slice(0, codeEntries.length);
+
+  if (codeEntries.length >= 2 && codeEntries.length === qtyPrices.length && codeEntries.length === amounts.length) {
+    const items = [];
+    for (let i = 0; i < codeEntries.length; i++) {
+      const qty = qtyPrices[i].qty;
+      const up = qtyPrices[i].unit_price;
+      const amt = amounts[i];
+      const err = Math.abs(qty * up - amt) / Math.max(amt, 0.01);
+      if (err < 0.05) {
+        items.push({
+          item_code: codeEntries[i].code,
+          description: cleanDescription(codeEntries[i].description) || codeEntries[i].code,
+          uom: extractUom(codeEntries[i].description),
+          qty, unit_price: up, amount: amt
+        });
+      }
+    }
+    return items;
+  }
+  return [];
+}
+
+function parseSupplierFromText(text) {
+  const result = {
+    supplier_name: null, supplier_address: null,
+    invoice_no: null, invoice_date: null,
+    currency: 'USD', incoterm: null,
+    consignee_name: null,
+    bl_awb_no: null, shipment_ref: null,
+    freight: null, insurance: null, other_charges: null,
+    invoice_total: null,
+    items: []
+  };
+
+  // Currency
+  if (/\bMVR\b\s*\d|Maldivian\s+Rufiya/i.test(text)) result.currency = 'MVR';
+  else if (/\bEUR\b\s*\d|€\s*\d/i.test(text)) result.currency = 'EUR';
+  else if (/\bJPY\b|Japanese\s+Yen/i.test(text)) result.currency = 'JPY';
+  else if (/\bINR\b|Indian\s+Rupee|₹/i.test(text)) result.currency = 'INR';
+  // USD default
+
+  // Supplier name
+  if (/FUJIFILM/i.test(text)) result.supplier_name = 'FUJIFILM Corporation';
+  else if (/ORTHO\s+CLINICAL\s+DIAGNOSTICS/i.test(text)) result.supplier_name = 'ORTHO CLINICAL DIAGNOSTICS INDIA PRIVATE LIMITED';
+  else if (/ADVANCED\s+HEALTHCARE\s+MACHINES/i.test(text)) result.supplier_name = 'Advanced Healthcare Machines Pvt. Ltd.';
+  else {
+    const m = text.match(/([A-Z][A-Za-z &.,'\-]{3,60}?(?:LIMITED|LTD\.?|PVT\.?\s*LTD\.?|PRIVATE\s+LIMITED|INC\.?|CORPORATION|CORP\.?|GMBH|CO\.?\s+LTD\.?))/);
+    if (m) result.supplier_name = m[1].trim().replace(/\s+/g, ' ');
+  }
+
+  // Consignee — only the three Maldives importers
+  let cm;
+  if ((cm = text.match(/(PROSYNERGY\s+MEDICAL\s+SYSTEMS[^\n]*)/i))) result.consignee_name = cm[1].trim().replace(/\s+/g, ' ');
+  else if ((cm = text.match(/(PRO\s+PHARMA\s+MALDIVES[^\n]*)/i))) result.consignee_name = cm[1].trim().replace(/\s+/g, ' ');
+  else if ((cm = text.match(/(QUALITY\s+CONTROL\s+SYSTEMS[^\n]*)/i))) result.consignee_name = cm[1].trim().replace(/\s+/g, ' ');
+
+  result.invoice_no = extractInvoiceNo(text);
+
+  // BL/AWB
+  let bl;
+  if ((bl = text.match(/MAWB\s*NO\.?\s*([0-9\-]+)/i))) result.bl_awb_no = bl[1];
+  else if ((bl = text.match(/(?:AWB|B[\/.]?L)\s*(?:NO\.?|#)?\s*[.:]\s*([0-9][0-9\-\/]+)/i))) result.bl_awb_no = bl[1];
+
+  // Shipment ref
+  const refParts = [];
+  if ((cm = text.match(/Delivery\s*no\.?\s*[.:]?\s*:?\s*(\S+)/i))) refParts.push(`Del:${cm[1].replace(/[^\w\-\/]/g, '')}`);
+  if ((cm = text.match(/Your\s*order\s*no\.?\s*[.:]?\s*:?\s*(\S+)/i))) refParts.push(`PO:${cm[1]}`);
+  if ((cm = text.match(/PROFORMA\s+INVOICE\s+NO\.?\s*[.:]?\s*([A-Z0-9\/\-_&\s]+?)(?=\s{3,}|\n|$)/i))) {
+    const pi = cm[1].trim().replace(/\s+/g, ' ');
+    if (pi && pi.length < 80) refParts.push(`PI:${pi}`);
+  }
+  if (refParts.length) result.shipment_ref = refParts.join(' / ');
+
+  // Date
+  const datePatterns = [
+    /Invoice\s*date\s*[.:]\s*(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/i,
+    /Invoice\s*date\s*[.:]\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
+    /EXPORT\s*INV\s*NO\.?\s*DATE[\s\S]{0,60}?(\d{1,2}[\-\s][A-Za-z]{3}[\-\s,]*\d{2,4})/i,
+    /([A-Za-z]+\s+\d{1,2},?\s+\d{4})/  // April 01, 2026
+  ];
+  for (const p of datePatterns) {
+    const m = text.match(p);
+    if (m) {
+      const d = parseDate(m[1]);
+      if (d) { result.invoice_date = d; break; }
+    }
+  }
+
+  // Freight / Insurance / Total
+  let fm;
+  if ((fm = text.match(/FREIGHT(?:\s+CHARGES?)?\s*[:\s]+([\d,]+\.\d{2})/i))) result.freight = parseFloat(fm[1].replace(/,/g, ''));
+  if ((fm = text.match(/INSURANCE(?:\s+(?:PREMIUM|CHARGES))?\s*[:\s]+([\d,]+\.\d{2})/i))) result.insurance = parseFloat(fm[1].replace(/,/g, ''));
+  if ((fm = text.match(/TOTAL\s+CIF\s+\(USD\)\s+([\d,]+\.\d{2})/i))) result.invoice_total = parseFloat(fm[1].replace(/,/g, ''));
+  else if ((fm = text.match(/TOTAL\s+CIP[\s\S]{0,40}?([\d,]+\.\d{2})/i))) result.invoice_total = parseFloat(fm[1].replace(/,/g, ''));
+  else if ((fm = text.match(/Total\s+CIP\s+MALE\s+Price[\s\S]{0,30}?([\d,]+\.\d{2})/i))) result.invoice_total = parseFloat(fm[1].replace(/,/g, ''));
+
+  // Items — try main parser first, fall back to columnar layout for Fujifilm-style
+  result.items = parseItems(text);
+  if (result.items.length === 0) {
+    result.items = parseColumnarFallback(text);
+  }
+
+  return result;
+}
+
+function parseExpenseFromText(text) {
+  const result = {
+    vendor_name: null, invoice_no: null, invoice_date: null,
+    currency: 'MVR', custom_form_no: null, delivery_order: null,
+    lines: [], total: null
+  };
+
+  if (/O'?NALA|ONALA/i.test(text)) result.vendor_name = "O'Nala";
+  else {
+    const m = text.match(/([A-Z][A-Za-z &.,'\-]{3,60}?(?:LIMITED|LTD\.?|PVT\.?\s*LTD\.?|INC\.?))/);
+    if (m) result.vendor_name = m[1].trim();
+  }
+
+  let m;
+  if ((m = text.match(/(INV\d{3,})/))) result.invoice_no = m[1];
+  else if ((m = text.match(/INVOICE\s*NO\.?\s*:?\s*([A-Z0-9\/\-]{3,})/i))) {
+    if (/\d/.test(m[1])) result.invoice_no = m[1];
+  }
+  if ((m = text.match(/INVOICE\s*DATE\s*:?\s*(\S+)/i))) result.invoice_date = parseDate(m[1]);
+  if ((m = text.match(/(?:CUSTOM\s*FORM\s*NO\.?|CUSTOM\s*FORM\s+SET)[\s\S]{0,40}?\b(R\d{5,})\b/i))) result.custom_form_no = m[1];
+  else if ((m = text.match(/\b(R\d{5,})\b/))) result.custom_form_no = m[1];
+  if ((m = text.match(/\b(FR\d{6,})\b/))) result.delivery_order = m[1];
+  else if ((m = text.match(/DELIVERY\s*ORDER\s*:?\s*([A-Z0-9]+)/i))) result.delivery_order = m[1];
+
+  if (/MVR|Maldivian/i.test(text)) result.currency = 'MVR';
+  else if (/USD|US\s+DOLLAR/i.test(text)) result.currency = 'USD';
+
+  // Parse lines using same approach
+  const rawLines = text.split('\n').map(l => l.trim());
+  for (let i = 0; i < rawLines.length; i++) {
+    const t = rawLines[i];
+    if (!t) continue;
+    if (HEADER_SKIP.test(t)) continue;
+
+    const triple = findAmountTriple(t);
+    if (triple) {
+      const before = t.substring(0, triple.beforeIndex).trim();
+      const tokens = tokenize(before).map(x => x.text);
+      let description = before;
+      let code = null;
+      // ITM-001 style code
+      if (tokens.length && /^[A-Z]+[-_]?\d+$/i.test(tokens[0])) {
+        code = tokens[0];
+        description = tokens.slice(1).join(' ');
+      }
+      description = description.trim();
+      // If no description on this line, leave it empty - user can fill in
+      if (!description && code) description = code;
+      if (description && !/total|grand|sub/i.test(description)) {
+        result.lines.push({ description, amount: triple.amount });
+      }
+    }
+  }
+
+  if ((m = text.match(/Total\s*Payable\s*:?\s*(?:MVR\s+)?([\d,]+\.\d{2})/i))) {
+    result.total = parseFloat(m[1].replace(/,/g, ''));
+  } else if ((m = text.match(/MVR\s+([\d,]+\.\d{2})/))) {
+    result.total = parseFloat(m[1].replace(/,/g, ''));
+  }
+
+  return result;
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// Public extraction functions — all local, no AI
+// ─────────────────────────────────────────────────────────────
 async function extractSupplierInvoice(file) {
-  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  const isImg = file.type.startsWith("image/");
+  const name = file.name.toLowerCase();
   let docText;
-  if (isPdf) {
+  if (name.endsWith(".pdf")) {
     docText = await pdfToText(file);
     if (!docText || docText.length < 20) {
-      throw new Error("This PDF has no selectable text (likely a scan). Please upload an Excel or a text-based PDF.");
+      throw new Error("This PDF has no selectable text (likely a scan). Please upload Excel or text-based PDF.");
     }
-  } else if (isImg) {
-    throw new Error("Image OCR isn't supported here yet — please upload the PDF or Excel version.");
+  } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    docText = wb.SheetNames.map(n =>
+      XLSX.utils.sheet_to_csv(wb.Sheets[n], { FS: "  " })
+    ).join("\n\n");
+  } else if (file.type.startsWith("image/")) {
+    throw new Error("Images aren't supported in local mode — upload the PDF or Excel.");
   } else {
     throw new Error("Unsupported file type: " + file.name);
   }
-  const prompt = SUPPLIER_PROMPT + "\n\n=== INVOICE TEXT ===\n" + docText + "\n=== END ===";
-  const text = await callClaudeText(prompt);
-  return extractJson(text);
+  const parsed = parseSupplierFromText(docText);
+  if (parsed.items.length === 0) {
+    throw new Error("Could not detect any item rows in this file. Check the layout, or add items manually.");
+  }
+  return parsed;
 }
 
 async function extractExpenseInvoice(file) {
-  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  const isImg = file.type.startsWith("image/");
+  const name = file.name.toLowerCase();
   let docText;
-  if (isPdf) {
+  if (name.endsWith(".pdf")) {
     docText = await pdfToText(file);
     if (!docText || docText.length < 20) {
-      throw new Error("This PDF has no selectable text (likely a scan). Please upload an Excel or a text-based PDF.");
+      throw new Error("This PDF has no selectable text (likely a scan). Please upload Excel or text-based PDF.");
     }
-  } else if (isImg) {
-    throw new Error("Image OCR isn't supported here yet — please upload the PDF or Excel version.");
+  } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    docText = wb.SheetNames.map(n =>
+      XLSX.utils.sheet_to_csv(wb.Sheets[n], { FS: "  " })
+    ).join("\n\n");
+  } else if (file.type.startsWith("image/")) {
+    throw new Error("Images aren't supported in local mode — upload the PDF or Excel.");
   } else {
     throw new Error("Unsupported file type: " + file.name);
   }
-  const prompt = EXPENSE_PROMPT + "\n\n=== INVOICE TEXT ===\n" + docText + "\n=== END ===";
-  const text = await callClaudeText(prompt);
-  return extractJson(text);
+  const parsed = parseExpenseFromText(docText);
+  if (parsed.lines.length === 0) {
+    throw new Error("Could not detect any expense lines in this file. Check the layout, or add lines manually.");
+  }
+  return parsed;
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // Company detection by consignee/supplier
@@ -929,23 +1279,9 @@ function App() {
     for (const f of Array.from(files)) {
       setBusyMsg(`Reading ${f.name}…`);
       try {
-        if (f.name.toLowerCase().endsWith(".xlsx") || f.name.toLowerCase().endsWith(".xls")) {
-          // Excel: read locally, no AI needed
-          const buf = await f.arrayBuffer();
-          const wb = XLSX.read(buf, { type: "array" });
-          // For now: send Excel content as text to Claude for extraction
-          const sheet = wb.Sheets[wb.SheetNames[0]];
-          const csv = XLSX.utils.sheet_to_csv(sheet);
-          const prompt = kind === "supplier" ? SUPPLIER_PROMPT : EXPENSE_PROMPT;
-          const text = await callClaudeText(prompt + "\n\n=== SPREADSHEET CONTENT (CSV) ===\n" + csv + "\n=== END ===");
-          const data = extractJson(text);
-          applyExtraction(data, kind, f.name);
-          results.push({ name: f.name, kind, ok: true });
-        } else {
-          const data = kind === "supplier" ? await extractSupplierInvoice(f) : await extractExpenseInvoice(f);
-          applyExtraction(data, kind, f.name);
-          results.push({ name: f.name, kind, ok: true });
-        }
+        const data = kind === "supplier" ? await extractSupplierInvoice(f) : await extractExpenseInvoice(f);
+        applyExtraction(data, kind, f.name);
+        results.push({ name: f.name, kind, ok: true });
       } catch (e) {
         console.error(e);
         results.push({ name: f.name, kind, ok: false, error: e.message });
@@ -1230,7 +1566,7 @@ function BuildTab({ state, setState, updateField, updateItem, updateLanding,
 
         {/* Upload zones — first, so AI can pre-fill the Header below */}
         <section className="card rounded p-5">
-          <div className="section-h"><span className="marker"></span>① Upload Documents — AI extraction</div>
+          <div className="section-h"><span className="marker"></span>① Upload Documents — auto-extract</div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <label
@@ -1243,7 +1579,7 @@ function BuildTab({ state, setState, updateField, updateItem, updateLanding,
               <input type="file" multiple accept=".pdf,.xlsx,.xls" className="hidden" onChange={e=>handleFileUpload(e.target.files, "supplier")} disabled={busy}/>
               <div className="text-2xl mb-1">📄</div>
               <div className="font-semibold text-sm">Supplier Invoice</div>
-              <div className="text-xs text-stone-500 mt-1">Drop text-based PDF or Excel — items, prices, freight, insurance, BL/AWB, supplier details extracted by AI</div>
+              <div className="text-xs text-stone-500 mt-1">Drop text-based PDF or Excel — items, prices, freight, insurance, BL/AWB, supplier details auto-extracted in your browser</div>
             </label>
 
             <label
@@ -1256,7 +1592,7 @@ function BuildTab({ state, setState, updateField, updateItem, updateLanding,
               <input type="file" multiple accept=".pdf,.xlsx,.xls" className="hidden" onChange={e=>handleFileUpload(e.target.files, "expense")} disabled={busy}/>
               <div className="text-2xl mb-1">🧾</div>
               <div className="font-semibold text-sm">Clearance / Expense Invoice</div>
-              <div className="text-xs text-stone-500 mt-1">Drop O'Nala or similar agent invoice — charges, delivery order, custom form extracted by AI</div>
+              <div className="text-xs text-stone-500 mt-1">Drop O'Nala or similar agent invoice — charges, delivery order, custom form auto-extracted</div>
             </label>
           </div>
 
