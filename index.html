@@ -381,7 +381,9 @@ function findAmountTriple(line) {
 function cleanDescription(s) {
   if (!s) return '';
   return s
-    .replace(/\s*=?\-?\s*\b(?:JP|GB|US|IN|CN|DE|FR|IT|NL|CH)\b\s*/g, ' ')
+    // Only strip the trailing COO code (e.g. "...3103771593 US" → "...3103771593"),
+    // never one buried inside the description (e.g. "NON US", "(non US)").
+    .replace(/\s*=?\-?\s*\b(?:JP|GB|US|IN|CN|DE|FR|IT|NL|CH)\b\s*$/, ' ')
     .replace(/\$+/g, '')
     .replace(/\bNA\b/g, '')
     .replace(/\bEACH\b/gi, '')
@@ -406,7 +408,10 @@ function parseItems(text) {
     const triple = findAmountTriple(line);
     if (triple) {
       const beforeText = line.substring(0, triple.beforeIndex).trim();
-      if (/\b(total|grand|sum|subtotal)\b/i.test(beforeText)) { pending = null; continue; }
+      // Skip true summary rows ("Total ...", "Grand total ...", "Subtotal ..."). The anchor
+      // is important — without it, products with "TOTAL" in their name (e.g. VITROS TOTAL PSA II,
+      // TOTAL PROTEIN, 25 OH VITAMIN D TOTAL) get falsely skipped.
+      if (/^\s*(total|grand\s+total|sub\s*total|sum)\b/i.test(beforeText)) { pending = null; continue; }
 
       const beforeTokens = tokenize(beforeText).map(t => t.text);
       let item_code = '';
@@ -425,13 +430,16 @@ function parseItems(text) {
 
       // Multi-line: if no proper code on this line, use the pending one
       const codeLooksValid = item_code && /\d{3,}/.test(item_code);
-      if (pending && !codeLooksValid) {
+      const usingPending = pending && !codeLooksValid;
+      if (usingPending) {
         descTokens = beforeTokens.slice(startIdx);
         item_code = pending.code;
       }
 
       const descPieces = [];
-      if (pending) descPieces.push(...pending.descParts);
+      // Only merge pending's description parts when we're also adopting its code.
+      // Otherwise a NIL/zero line that set pending would bleed its description into the next real item.
+      if (usingPending) descPieces.push(...pending.descParts);
       descPieces.push(descTokens.join(' '));
       const desc = cleanDescription(descPieces.filter(s => s).join(' '));
 
@@ -448,8 +456,33 @@ function parseItems(text) {
       pending = null;
     } else {
       const tokens = tokenize(line).map(t => t.text);
+      // NIL-priced item: line has seq + code + description + ... + NIL pattern.
+      // Capture it as a zero-priced item so the user still sees it shipped (e.g. promo / sample).
+      // Otherwise it would have set 'pending' and bled its description into the next real item.
+      if (tokens.length >= 4 &&
+          /^\d{1,3}$/.test(tokens[0]) && parseInt(tokens[0]) < 200 &&
+          /^\d{4,}$/.test(tokens[1]) &&
+          /\bNIL\b/i.test(line)) {
+        // qty is the last numeric token before NIL
+        let qty = 0;
+        for (let t = tokens.length - 1; t >= 0; t--) {
+          if (/^NIL$/i.test(tokens[t])) continue;
+          const v = tokenAsNumber(tokens[t]);
+          if (v !== null && v > 0 && v < 100000) { qty = v; break; }
+        }
+        const descTokens = tokens.slice(2).filter(t => !/^NIL$/i.test(t));
+        items.push({
+          item_code: String(tokens[1]),
+          description: cleanDescription(descTokens.join(' ')) || tokens[1],
+          uom: extractUom(descTokens.join(' ')),
+          qty,
+          unit_price: 0,
+          amount: 0
+        });
+        pending = null;
+      }
       // "seq code descr..." e.g. AHM "04 6204990 PKGD LINKAGE, MNT"
-      if (tokens.length >= 2 && /^\d{1,3}$/.test(tokens[0]) && parseInt(tokens[0]) < 200 && /^\d{4,}$/.test(tokens[1])) {
+      else if (tokens.length >= 2 && /^\d{1,3}$/.test(tokens[0]) && parseInt(tokens[0]) < 200 && /^\d{4,}$/.test(tokens[1])) {
         pending = { code: tokens[1], descParts: tokens.slice(2).length ? [tokens.slice(2).join(' ')] : [] };
       }
       // "seq code" alone e.g. Fujifilm "000010 15809463"
@@ -676,7 +709,7 @@ function parseExpenseFromText(text) {
       description = description.trim();
       // If no description on this line, leave it empty - user can fill in
       if (!description && code) description = code;
-      if (description && !/total|grand|sub/i.test(description)) {
+      if (description && !/^\s*(total|grand\s+total|sub\s*total|sum)\b/i.test(description)) {
         result.lines.push({ description, amount: triple.amount });
       }
     }
